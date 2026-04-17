@@ -1,0 +1,42 @@
+## This process assumes that you already have:
+1. A raspberry pi running on bookworm
+2. A working klipper installation
+
+## Klipper customisations
+# Set all min_temps in printer.cfg to -100 (to stop the firmware entering an error state because the sensors aren't connected)
+# Make sure printer.cfg is set to use the z-axis limit switch
+# Once you have a running Klipper installation without your printing toolhead connected, you are ready to proceed
+# Stop and disable moonraker:
+sudo systemctl stop moonraker
+sudo systemctl disable moonraker
+
+## setup python venv
+python3 -m venv grabber-venv --system-site-packages
+source grabber-venv/bin/activate
+pip install -r requirements --no-cache
+# You might need to uninstall numpy from the venv if it conflicts with the system version (venv opencv should still run fine)
+
+## install picamera2 system module and setup camera
+sudo apt install python3-picamera2
+# setup camera module in /boot/firmware/config.txt
+# for me this was:
+camera_auto_detect=0
+dtoverlay=ov5647,cam0
+dtoverlay=ov5647,cam1
+gpu_mem=128
+# reboot
+sudo reboot
+# check camera works
+rpicam-hello --list-cameras
+
+## run the VisionGrabber scripts
+# In the first dedicated terminal:
+source grabber-venv/bin/activate
+python flask_app.py.
+# This will then be accessible via http://<IP>:5000
+# In the second terminal:
+source grabber-venv/bin/activate
+python scan_and_grab.py
+# you will be prompted for input to control the sequence
+
+# Enjoy!
