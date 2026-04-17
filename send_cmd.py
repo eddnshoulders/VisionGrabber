@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 # send_cmd.py
-import serial
 import sys
 import time
+from scan_and_grab import *
 
-ser = serial.Serial("/dev/ttyAMA0", 115200, timeout=30)
-time.sleep(0.1)  # let port settle
+# setup the klipper connection
+k = KlipperAPI()
 
-cmd = " ".join(sys.argv[1:]) + "\n"
-print(f">> {cmd.strip()}")
-ser.write(cmd.encode())
+# send the command string passed by argument
+cmd = " ".join(sys.argv[1:])
 
-response = ser.readline().decode().strip()
+# get and print the response
+response = k.move_and_wait(cmd)
 print(f"<< {response}")
 
-ser.close()
+# close the klipper connection
+k.close()

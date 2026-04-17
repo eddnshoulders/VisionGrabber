@@ -15,12 +15,12 @@ fps_estimate = 0.0
 latest_detection = None   # dict with px, py, radius, area, circularity -- or None
 
 params = {
-    "debug_view": "annotated",   # raw, gray, mask, contours, annotated, tiled
+    "debug_view": "tiled",   # raw, gray, mask, contours, annotated, tiled
     "blur_kernel": 5,
     "threshold_mode": "adaptive",    # binary, inverse, hsv, adaptive
     "threshold_value": 110,
-    "adaptive_block_size": 40,       # must be odd, size of local neighbourhood
-    "adaptive_c": -5,                # constant subtracted from local mean
+    "adaptive_block_size": 45,       # must be odd, size of local neighbourhood
+    "adaptive_c": -15,                # constant subtracted from local mean
     # HSV red mask params
     "hsv_h1_lo": 0,
     "hsv_h1_hi": 10,
@@ -30,18 +30,18 @@ params = {
     "hsv_s_hi": 255,
     "hsv_v_lo": 50,
     "hsv_v_hi": 255,
-    "min_area": 7500,
+    "min_area": 4000,
     "max_area": 60000,
     "circularity_min": 0.80,
-    "min_radius": 45,
+    "min_radius": 25,
     "max_radius": 135,
     "show_all_contours": True,
     "show_accepted_contours": True,
     # Region of interest -- detections outside this pixel region are ignored
-    "roi_x_min": 183,
-    "roi_x_max": 457,
+    "roi_x_min": 178,
+    "roi_x_max": 417,
     "roi_y_min": 100,
-    "roi_y_max": 323,
+    "roi_y_max": 296,
     "frame_width": 640,
     "frame_height": 480,
     "jpeg_quality": 65,
