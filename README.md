@@ -3,7 +3,7 @@
 
 > Autonomous vision-guided pick-and-place system built on a Voron V0 — integrating custom STM32 firmware, dual-camera OpenCV detection, Hailo-8L ML inference, and hazard-aware path planning into a single self-contained demonstrator.
 
-<img src="CAD_machine_screenshot.png" alt="CAD Machine Model" width="700"/>
+<img src="images/CAD_machine_screenshot.png" alt="CAD Machine Model" width="700"/>
 
 ![STM32 Build](https://img.shields.io/github/actions/workflow/status/eddnshoulders/VisionGrabber2/STM32-Build.yml?label=STM32%20build&logo=stmicroelectronics)
 ![STM32 Unit Tests](https://img.shields.io/github/actions/workflow/status/eddnshoulders/VisionGrabber2/stm32-unit-tests.yml?label=STM32%20unit%20tests&logo=github)
