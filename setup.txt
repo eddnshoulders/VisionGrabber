@@ -1,0 +1,100 @@
+## This process assumes that you already have:
+1. A raspberry pi running on bookworm
+2. A working klipper installation
+3. A built toolhead using the model in the Toolhead folder, and installed on the Voron v0
+4. A cylinder from the same model, with a white circle of paper or cardboard glued to the top
+5. A black sheet of plastic around 150x150mm resting on top of the bed plate - this helps the OpenCV detection
+
+## Klipper customisations
+# Set all min_temps in printer.cfg to -100 (to stop the firmware entering an error state because the sensors aren't connected)
+# Make sure printer.cfg is set to use the z-axis limit switch
+# Once you have a running Klipper installation without your printing toolhead connected, you are ready to proceed
+# Stop and disable moonraker:
+sudo systemctl stop moonraker
+sudo systemctl disable moonraker
+
+## setup python venv
+python3 -m venv grabber-venv --system-site-packages
+source grabber-venv/bin/activate
+pip install -r requirements.txt --no-cache
+# You might need to uninstall numpy from the venv if it conflicts with the system version (venv opencv should still run fine)
+
+## install picamera2 system module and setup camera
+sudo apt install python3-picamera2
+# setup camera module in /boot/firmware/config.txt
+# for me this was:
+camera_auto_detect=0
+dtoverlay=ov5647,cam0
+dtoverlay=ov5647,cam1
+gpu_mem=128
+# reboot
+sudo reboot
+# check camera works
+rpicam-hello --list-cameras
+
+## Check the Klipper connection works
+source grabber-venv/bin/activate
+# test out the klipper connection
+python klipper_test.py
+# if the machine returns an error look at the logs to determine the cause (or restart the moonraker service and look in the web gui)
+tail -50 /home/pi/printer_data/logs/klippy.log
+# if the machine homes, you're good to go.
+
+## calibrate the grabber servo positions for open and closed jaws
+nano ~/printer_data/config/printer.cfg
+# make sure you have a section:
+[servo Grabber]
+pin: PA1
+maximum_servo_angle: 180
+minimum_pulse_width: 0.0001	# these are just nominal values that should work. Modify for your servo if required
+maximum_pulse_width: 0.002
+# restart Klipper
+sudo systemctl restart klipper.service
+# manually find the right angle values for open and closed grabber positions. My values were:
+[open] python send_cmd.py "SET_SERVO SERVO=Grabber angle=32"
+[closed] python send_cmd.py "SET_SERVO SERVO=Grabber angle=140"
+# copy these values into the config section at the top of scan_and_grab.py
+nano scan_and_grab.py
+GRIPPER_OPEN      = "SET_SERVO SERVO=Grabber angle=32"
+GRIPPER_CLOSE     = "SET_SERVO SERVO=Grabber angle=140"
+
+
+## run the VisionGrabber scripts in a separate terminal, and leave running in the foreground:
+source grabber-venv/bin/activate
+python flask_app.py
+# This will then be accessible via http://<IP>:5000
+# You might need to adjust roi_x_min, roi_x_max, roi_y_min, roi_y_max - this bounding box should be around the area of the bed visible through the grabber jaws with them in the open position, with the top line extending a little past the end of them
+# At this point, make sure your camera is focussed approximately on the top of the grabber jaws
+
+## Check your z-height for clearance over the cylinder
+# move the toolhead to the approx bed centre
+python send_cmd.py "G0 X60 Y80 F3000"
+# Place the cylinder on the bed and move the Z axis so the bottom of the jaws just clears the top
+python send_cmd.py "G0 Z30 F3000"
+# update the value in scan_and_grab.py
+nano scan_and_grab.py
+Z_BED_DOWN = Z30   # your value might vary
+
+## Back in the main terminal, run the sequencer script
+python scan_and_grab.py
+# you will be prompted for input to control the sequence
+
+
+## you might want to use the send_cmd.py script to fine-tune the values of PICKUP_CX and PICKUP_CY in scan_and_grab.py to get a cleaner pickup. I would recommend
+# move to the bed centre at the Z_BED_DOWN position
+python send_cmd.py "G0 X60 Y80 Z30 F3000"
+# place the cylinder under the grippers and raise the bed
+python send_cmd.py "G0 Z5 F3000"
+# close the grippers 
+python send_cmd.py "SET_SERVO SERVO=Grabber angle=140"
+# adjust the cylinder so it's sitting squarely in the grippers (push down on the top), then lower the bed
+python send_cmd.py "G0 X60 Y80 Z30 F3000"
+# raise the bed back up to make clean contact with the bottom of the cylinder
+python send_cmd.py "G0 Z30 F3000"
+# with your finger on the top of the cylinder, pressing lightly, open the grippers
+python send_cmd.py "SET_SERVO SERVO=Grabber angle=32"
+# note the pixel X and Y coords from the web gui annotated view
+# update the corresponding values of PICKUP_CX and PICKUP_CY in scan_and_grab.py
+# test by running the sequencing script again
+python scan_and_grab.py
+
