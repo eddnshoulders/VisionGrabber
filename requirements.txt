@@ -3,3 +3,4 @@ MarkupSafe
 numpy
 opencv-python-headless
 requests
+pyserial
