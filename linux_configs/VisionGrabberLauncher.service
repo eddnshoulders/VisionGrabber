@@ -1,0 +1,16 @@
+[Unit]
+Description=VisionGrabber Button Launcher
+After=VisionGrabberWeb.service dev-ttyButton.device
+Requires=VisionGrabberWeb.service dev-ttyButton.device
+BindsTo=dev-ttyButton.device
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/
+ExecStart=/home/pi/VisionGrabber/grabber-venv/bin/python -u /home/pi/VisionGrabber/launch.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,1 @@
+ACTION=="add", SUBSYSTEM=="tty", ATTRS{idVendor}=="1b4f", ATTRS{idProduct}=="9206", SYMLINK+="ttyButton", TAG+="systemd", ENV{SYSTEMD_WANTS}+="VisionGrabberLauncher.service"
