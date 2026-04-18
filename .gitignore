@@ -1,0 +1,8 @@
+# Python
+Host/grabber-venv/
+**/__pycache__/
+**/*.pyc
+
+# General
+.DS_Store
+Thumbs.db

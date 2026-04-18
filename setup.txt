@@ -4,6 +4,7 @@
 3. A built toolhead using the model in the Toolhead folder, and installed on the Voron v0
 4. A cylinder from the same model, with a white circle of paper or cardboard glued to the top
 5. A black sheet of plastic around 150x150mm resting on top of the bed plate - this helps the OpenCV detection
+6. A button that operates according to the design in the folder Button (sends "BTN\n" on press and switches the LED in response to "LED_ON\n" and "LED_OFF\n" messages)
 
 ## Klipper customisations
 # Set all min_temps in printer.cfg to -100 (to stop the firmware entering an error state because the sensors aren't connected)
@@ -75,11 +76,6 @@ python send_cmd.py "G0 Z30 F3000"
 nano scan_and_grab.py
 Z_BED_DOWN = Z30   # your value might vary
 
-## Back in the main terminal, run the sequencer script
-python scan_and_grab.py
-# you will be prompted for input to control the sequence
-
-
 ## you might want to use the send_cmd.py script to fine-tune the values of PICKUP_CX and PICKUP_CY in scan_and_grab.py to get a cleaner pickup. I would recommend
 # move to the bed centre at the Z_BED_DOWN position
 python send_cmd.py "G0 X60 Y80 Z30 F3000"
@@ -95,6 +91,37 @@ python send_cmd.py "G0 Z30 F3000"
 python send_cmd.py "SET_SERVO SERVO=Grabber angle=32"
 # note the pixel X and Y coords from the web gui annotated view
 # update the corresponding values of PICKUP_CX and PICKUP_CY in scan_and_grab.py
-# test by running the sequencing script again
-python scan_and_grab.py
+
+## setup udev rules allow button to be mounted consistent
+# from the "linux_configs" folder, copy 99-button.rules to /etc/udev/rules.d/
+# find the device entry for the USB UART button
+ls /dev/serial/by-id/
+# find the vendor and model IDs (this is where my button device was mounted)
+udevadm info /dev/serial/by-id/usb-SparkFun_SparkFun_Pro_Micro-if00 | grep -E 'ID_VENDOR_ID|ID_MODEL_ID'
+# make sure these 2 values are correct in /etc/udev/rules.d/99-button.rules
+# apply the udev rule or replug the button
+sudo udevadm control --reload-rules && sudo udevadm trigger
+# the button should now be mounted at /dev/ttyButton
+# check button function using
+screen /dev/ttyButton 115200
+# check "BTN\n" is received on button pushes, and the LED responds to "LED_ON\n" and "LED_OFF\n", the use ctrl+a+d to exit screen
+
+## install systemd configs to run python scripts
+# from the "linux_configs" folder, copy VisionGrabberWeb.service and VisionGrabberLauncher.service to /etc/systemd/system/
+cd linux_configs
+cp VisionGrabberWeb.service VisionGrabberLauncher.service /etc/systemd/system
+# check that the venv and script paths in both files match paths on your system (default root is /home/pi/VisionGrabber)
+# reload and enable services
+sudo systemctl daemon-reload
+sudo systemctl enable VisionGrabberWeb.service
+sudo systemctl start VisionGrabberWeb.service
+sudo systemctl enable VisionGrabberLauncher.service
+sudo systemctl start VisionGrabberLauncher.service
+# check both have started 
+sudo systemctl status VisionGrabberWeb.service
+sudo systemctl status VisionGrabberLauncher.service
+# monitor VisionGrabberLauncher in real time to see if it responds to the button push
+journalctl -fu VisionGrabberLauncher.service
+
+## if the button is unplugged, the launcher service will be automatically disabled, then renabled when it's plugged back in
 
