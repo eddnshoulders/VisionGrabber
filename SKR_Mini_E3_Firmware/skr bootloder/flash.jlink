@@ -1,0 +1,4 @@
+loadbin skr_mini_e3_v2_bootloader.bin, 0x08000000
+r
+g
+exit

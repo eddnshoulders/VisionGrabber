@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug GTests",
+            "type": "gdb",
+            "request": "launch",
+            "program": "/mnt/c/Users/f402n/Desktop/VisionGrabber/SKR_Mini_E3_Firmware/voronMC/tests/build/run_tests",
+            "args": [],
+            "cwd": "/mnt/c/Users/f402n/Desktop/VisionGrabber/SKR_Mini_E3_Firmware/voronMC/tests",
+            "gdbpath": "/usr/bin/gdb",
+            "debugger_args": [],
+            "env": {},
+            "printCalls": false,
+            "stopAtEntry": false
+        }
+    ]
+}

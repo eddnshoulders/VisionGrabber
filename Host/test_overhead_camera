@@ -1,0 +1,5 @@
+ffmpeg -f v4l2 -input_format mjpeg -video_size 1280x960 -framerate 30 \
+  -i /dev/video0 \
+  -c:v copy \
+  -f mjpeg -q:v 5 \
+  tcp://0.0.0.0:8080?listen

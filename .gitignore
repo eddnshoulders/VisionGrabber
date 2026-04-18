@@ -3,6 +3,24 @@ Host/grabber-venv/
 **/__pycache__/
 **/*.pyc
 
+# STM32 compiler intermediates
+**/*.o
+**/*.d
+**/*.su
+**/*.cyclo
+
+# STM32CubeIDE settings	
+SKR_Mini_E3_Firmware/voronMC/.settings/
+
+# STM32 build artefacts
+SKR_Mini_E3_Firmware/voronMC/tests/Build/*
+SKR_Mini_E3_Firmware/voronMC/Debug/*.elf
+SKR_Mini_E3_Firmware/voronMC/Debug/*.map
+SKR_Mini_E3_Firmware/voronMC/Debug/*.list
+SKR_Mini_E3_Firmware/voronMC/Release/*.elf
+SKR_Mini_E3_Firmware/voronMC/Release/*.map
+SKR_Mini_E3_Firmware/voronMC/Release/*.list
+
 # General
 .DS_Store
 Thumbs.db

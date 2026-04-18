@@ -8,7 +8,7 @@ BindsTo=dev-ttyButton.device
 Type=simple
 User=pi
 WorkingDirectory=/home/pi/
-ExecStart=/home/pi/VisionGrabber/grabber-venv/bin/python -u /home/pi/VisionGrabber/launch.py
+ExecStart=/home/pi/VisionGrabber/Host/grabber-venv/bin/python -u /home/pi/VisionGrabber/Host/launch.py
 Restart=always
 RestartSec=5
 
