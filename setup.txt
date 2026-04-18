@@ -59,7 +59,6 @@ nano scan_and_grab.py
 GRIPPER_OPEN      = "SET_SERVO SERVO=Grabber angle=32"
 GRIPPER_CLOSE     = "SET_SERVO SERVO=Grabber angle=140"
 
-
 ## run the VisionGrabber scripts in a separate terminal, and leave running in the foreground:
 source grabber-venv/bin/activate
 python flask_app.py
@@ -122,6 +121,19 @@ sudo systemctl status VisionGrabberWeb.service
 sudo systemctl status VisionGrabberLauncher.service
 # monitor VisionGrabberLauncher in real time to see if it responds to the button push
 journalctl -fu VisionGrabberLauncher.service
+
+## Every boot, do the following:
+# manual reset of the SKR board
+# restart the klipper service
+sudo systemctl restart klipper.service 
+# firmware reset
+sudo python send_cmd.py "FIRMWARE_RESTART"
+# test the connection
+python klipper_test.py
+# restart the launcher service
+sudo systemctl restart VisionGrabberLauncher.service 
+
+## when the button is lit, the system is waiting for a button press
 
 ## if the button is unplugged, the launcher service will be automatically disabled, then renabled when it's plugged back in
 
