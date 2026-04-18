@@ -91,7 +91,7 @@ def scan_and_grab(machine):
 
         for x in x_points:
             print(f"  Scanning X={x} Y={y}")
-            klipper.move_and_wait(f"G0 X{x} Y{y} F{SCAN_FEEDRATE}")
+            machine.move_and_wait(f"G0 X{x} Y{y} F{SCAN_FEEDRATE}")
             move_complete_time = time.time()
             time.sleep(STEP_SETTLE_TIME)
 
@@ -107,14 +107,13 @@ def scan_and_grab(machine):
 
     if not found:
         print("\nScan complete -- cylinder not found. Aborting.")
-        klipper.close()
         return
 
     # Iterative alignment loop
     aligned = False
 
     while not aligned:
-        tx, ty = klipper.get_position()
+        homed, tx, ty, tz = machine.get_position()
         px = detection["px"]
         py = detection["py"]
 
@@ -126,14 +125,13 @@ def scan_and_grab(machine):
         print(f"\n  Aligning: px={px:.1f} py={py:.1f} offset=({offset_x:.2f}, {offset_y:.2f})")
         print(f"  Target: X={target_x:.2f} Y={target_y:.2f}")
 
-        klipper.move_and_wait(f"G0 X{target_x:.2f} Y{target_y:.2f} F{MOVE_FEEDRATE}")
+        machine.move_and_wait(f"G0 X{target_x:.2f} Y{target_y:.2f} F{MOVE_FEEDRATE}")
         move_complete_time = time.time()
         time.sleep(STEP_SETTLE_TIME)
 
         confirmed, data = get_confirmed_detection(move_complete_time)
         if not confirmed:
             print("  No detection after alignment move -- aborting.")
-            klipper.close()
             return
 
         detection = data
@@ -149,23 +147,22 @@ def scan_and_grab(machine):
 
     # Pick sequence
     print("\nPicking up cylinder...")
-    klipper.move_and_wait(f"G0 Z{Z_BED_UP} F{BED_FEEDRATE}")
-    klipper.gcode(GRIPPER_CLOSE)
+    machine.move_and_wait(f"G0 Z{Z_BED_UP} F{BED_FEEDRATE}")
+    machine.gcode(GRIPPER_CLOSE)
     time.sleep(1)
-    klipper.move_and_wait(f"G0 Z{Z_BED_DOWN} F{BED_FEEDRATE}")
+    machine.move_and_wait(f"G0 Z{Z_BED_DOWN} F{BED_FEEDRATE}")
 
     # Move to drop position
     print(f"\nMoving to drop position X={DROP_X} Y={DROP_Y}...")
-    klipper.move_and_wait(f"G0 X{DROP_X} Y{DROP_Y} F{MOVE_FEEDRATE}")
+    machine.move_and_wait(f"G0 X{DROP_X} Y{DROP_Y} F{MOVE_FEEDRATE}")
 
     # Drop
     print("Dropping cylinder.")
-    klipper.gcode(GRIPPER_OPEN)
+    machine.gcode(GRIPPER_OPEN)
     time.sleep(0.5)
 
     print("\nDone.")
-    klipper.close()
-
 
 if __name__ == "__main__":
-    scan_and_grab()
+    machine = KlipperAPI()  
+    scan_and_grab(machine)

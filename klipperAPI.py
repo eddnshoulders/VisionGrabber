@@ -1,6 +1,7 @@
 import socket
 import json
 import time
+from config import *
 
 # ── Klipper API ───────────────────────────────────────────────────────────────
 
