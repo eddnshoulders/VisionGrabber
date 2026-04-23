@@ -1,24 +1,19 @@
 ## This process assumes that you already have:
-1. A raspberry pi running on bookworm
-2. A working klipper installation
+1. A raspberry pi running on bookworm and an SKR Mini E3 on your voron v0
+2. STM32CubeIDE (or a standalone SWD flashing app) and an SWD debug/flashing interface
 3. A built toolhead using the model in the Toolhead folder, and installed on the Voron v0
-4. A cylinder from the same model, with a white circle of paper or cardboard glued to the top
-5. A black sheet of plastic around 150x150mm resting on top of the bed plate - this helps the OpenCV detection
-6. A button that operates according to the design in the folder Button (sends "BTN\n" on press and switches the LED in response to "LED_ON\n" and "LED_OFF\n" messages)
-
-## Klipper customisations
-# Set all min_temps in printer.cfg to -100 (to stop the firmware entering an error state because the sensors aren't connected)
-# Make sure printer.cfg is set to use the z-axis limit switch
-# Once you have a running Klipper installation without your printing toolhead connected, you are ready to proceed
-# Stop and disable moonraker:
-sudo systemctl stop moonraker
-sudo systemctl disable moonraker
+NB - The configuration values in Host/Config.py and Host/flask_app.py are optimised for a 6mm camera lens 
+5. The 20mm diameter cylinder from the same model, with a white circle of paper or cardboard glued to the top
+6. A black sheet of hard plastic (I used FR4) around 150x150mm resting on top of the bed plate - this helps the OpenCV detection
+7. A button that operates according to the design in the folder Button (sends "BTN\n" on press and switches the LED in response to "LED_ON\n" and "LED_OFF\n" messages)
 
 ## setup python venv
+cd VisionGrabber/Host
 python3 -m venv grabber-venv --system-site-packages
 source grabber-venv/bin/activate
 pip install -r requirements.txt --no-cache
 # You might need to uninstall numpy from the venv if it conflicts with the system version (venv opencv should still run fine)
+pip uninstall numpy
 
 ## install picamera2 system module and setup camera
 sudo apt install python3-picamera2
@@ -33,71 +28,88 @@ sudo reboot
 # check camera works
 rpicam-hello --list-cameras
 
-## Check the Klipper connection works
+## flash SKR Mini with voronMC custom motion-control firmware
+# if you have a j-link, you can flash by runing the flash_voronMC.bat file in SKR_Mini_E3_Firmware\jlink
+# the STM32CubeIDE project is in SKR_Mini_E3_Firmware\voronMC - you can open and flash this after setting up your SWD interface within "Run Configurations"
+
+## connect the UART from the SKR pins to the pi header pins according to these pin numbers:
+Pi | Fcn | SKR
+6  - GND - TFT 4
+8  - TXD - TFT 2
+10 - RXD - TFT 3
+# refer to the pin image and schematic diagram in SKR_Mini_E3_Firmware\BIGTREETECH-SKR-mini-E3\hardware for SKR pin numbers
+# check with a pi header pin reference diagram for the pi pin numbers
+
+# make sure the hardware uart is mapped to the UART0 pins used to communicate with the MCU
+enable_uart=1
+dtoverlay=disable-bt
+# Disable the bluetooth services
+sudo systemctl disable hciuart
+sudo systemctl disable bluetooth
+# Reboot
+# Running ls -lah /dev/serial* should then show /dev/serial0 -> /dev/ttyAMA0. This shows the hardware UART is being used (better)
+# if your UART isn't /dev/ttyAMA0, you will need to modify the MACHINE_UART parameter in Hosts/config.py
+# test the UART command interface is working
+cd VisionGrabber/Host
 source grabber-venv/bin/activate
-# test out the klipper connection
-python klipper_test.py
-# if the machine returns an error look at the logs to determine the cause (or restart the moonraker service and look in the web gui)
-tail -50 /home/pi/printer_data/logs/klippy.log
-# if the machine homes, you're good to go.
+python send_cmd.py "STATE"
+# if you get the response "<< UNHOMED", you're link is working and you should be able to home the machine
+python send_cmd.py "G28"
 
 ## calibrate the grabber servo positions for open and closed jaws
-nano ~/printer_data/config/printer.cfg
-# make sure you have a section:
-[servo Grabber]
-pin: PA1
-maximum_servo_angle: 180
-minimum_pulse_width: 0.0001	# these are just nominal values that should work. Modify for your servo if required
-maximum_pulse_width: 0.002
-# restart Klipper
-sudo systemctl restart klipper.service
-# manually find the right angle values for open and closed grabber positions. My values were:
-[open] python send_cmd.py "SET_SERVO SERVO=Grabber angle=32"
-[closed] python send_cmd.py "SET_SERVO SERVO=Grabber angle=140"
-# copy these values into the config section at the top of scan_and_grab.py
+# by default, SERVO_MIN_PULSE_US = 50 and SERVO_MAX_PULSE_US = 3000 in SKR_Mini_E3_Firmware\voronMC\Core\Inc\Config.h - change rebuild/reflash if required
+# manually find the right angle values for open and closed grabber positions using Hosts/send_cmd.py to manually send the commands to the SKR. My values were:
+[open] python send_cmd.py "M280 S23"
+[closed] python send_cmd.py "M280 S128"
+# copy these values into Host/config.py
+GRIPPER_OPEN      = 23
+GRIPPER_CLOSE     = 128
+
+## Check your z-height for clearance over the cylinder
+# move the toolhead to the approx bed centre
+python send_cmd.py "G0 X60 Y80 F3000"
+# Place the cylinder on the bed and move the Z axis so the bottom of the jaws the top of the cylinder - default is 40 which should be more than enough
+python send_cmd.py "G0 Z40 F1000"
+# update the value in scan_and_grab.py
 nano scan_and_grab.py
-GRIPPER_OPEN      = "SET_SERVO SERVO=Grabber angle=32"
-GRIPPER_CLOSE     = "SET_SERVO SERVO=Grabber angle=140"
+Z_BED_DOWN = Z40   # your value might vary
 
 ## run the VisionGrabber scripts in a separate terminal, and leave running in the foreground:
 source grabber-venv/bin/activate
 python flask_app.py
 # This will then be accessible via http://<IP>:5000
-# You might need to adjust roi_x_min, roi_x_max, roi_y_min, roi_y_max - this bounding box should be around the area of the bed visible through the grabber jaws with them in the open position, with the top line extending a little past the end of them
-# At this point, make sure your camera is focussed approximately on the top of the grabber jaws
-
-## Check your z-height for clearance over the cylinder
-# move the toolhead to the approx bed centre
-python send_cmd.py "G0 X60 Y80 F3000"
-# Place the cylinder on the bed and move the Z axis so the bottom of the jaws just clears the top
-python send_cmd.py "G0 Z30 F3000"
-# update the value in scan_and_grab.py
-nano scan_and_grab.py
-Z_BED_DOWN = Z30   # your value might vary
+# At this point, make sure your camera is focussed approximately on the top of the cylinder when at the Z_BED_DOWN position
+# You might need to adjust parameters in the web interface if using a lens other than 6mm - the annotated view should show the cylinder-top circle being detected successfully and consistently at Z_BED_DOWN
 
 ## you might want to use the send_cmd.py script to fine-tune the values of PICKUP_CX and PICKUP_CY in scan_and_grab.py to get a cleaner pickup. I would recommend
 # move to the bed centre at the Z_BED_DOWN position
-python send_cmd.py "G0 X60 Y80 Z30 F3000"
+python send_cmd.py "G0 X60 Y80 Z40 F1000"
 # place the cylinder under the grippers and raise the bed
-python send_cmd.py "G0 Z5 F3000"
+python send_cmd.py "G0 Z5 F1000"
 # close the grippers 
-python send_cmd.py "SET_SERVO SERVO=Grabber angle=140"
+python send_cmd.py GRIPPER_CLOSE
 # adjust the cylinder so it's sitting squarely in the grippers (push down on the top), then lower the bed
-python send_cmd.py "G0 X60 Y80 Z30 F3000"
+python send_cmd.py "G0 Z40 F1000"
 # raise the bed back up to make clean contact with the bottom of the cylinder
-python send_cmd.py "G0 Z30 F3000"
+python send_cmd.py "G0 Z5 F1000"
 # with your finger on the top of the cylinder, pressing lightly, open the grippers
-python send_cmd.py "SET_SERVO SERVO=Grabber angle=32"
+python send_cmd.py GRIPPER_OPEN
+# move the bed back down
+python send_cmd.py "G0 Z40 F1000"
 # note the pixel X and Y coords from the web gui annotated view
 # update the corresponding values of PICKUP_CX and PICKUP_CY in scan_and_grab.py
+# close the terminal running flask_app.py
 
 ## setup udev rules allow button to be mounted consistent
 # from the "linux_configs" folder, copy 99-button.rules to /etc/udev/rules.d/
+cd linux_configs
+sudo cp 99-button.rules /etc/udev/rules.d/
 # find the device entry for the USB UART button
 ls /dev/serial/by-id/
 # find the vendor and model IDs (this is where my button device was mounted)
 udevadm info /dev/serial/by-id/usb-SparkFun_SparkFun_Pro_Micro-if00 | grep -E 'ID_VENDOR_ID|ID_MODEL_ID'
 # make sure these 2 values are correct in /etc/udev/rules.d/99-button.rules
+sudo nano /etc/udev/rules.d/99-button.rules
 # apply the udev rule or replug the button
 sudo udevadm control --reload-rules && sudo udevadm trigger
 # the button should now be mounted at /dev/ttyButton
@@ -108,7 +120,7 @@ screen /dev/ttyButton 115200
 ## install systemd configs to run python scripts
 # from the "linux_configs" folder, copy VisionGrabberWeb.service and VisionGrabberLauncher.service to /etc/systemd/system/
 cd linux_configs
-cp VisionGrabberWeb.service VisionGrabberLauncher.service /etc/systemd/system
+sudo cp VisionGrabberWeb.service VisionGrabberLauncher.service /etc/systemd/system
 # check that the venv and script paths in both files match paths on your system (default root is /home/pi/VisionGrabber)
 # reload and enable services
 sudo systemctl daemon-reload
@@ -119,21 +131,17 @@ sudo systemctl start VisionGrabberLauncher.service
 # check both have started 
 sudo systemctl status VisionGrabberWeb.service
 sudo systemctl status VisionGrabberLauncher.service
-# monitor VisionGrabberLauncher in real time to see if it responds to the button push
+
+## repower the machine - the button should light after a short while when the sequence is ready to run
+# press the button - this should home the machine
+# when this has finished the button should light again
+# place the cylinder somewhere near the middle of the bed
+# the second push should locate, pickup the cylinder and drop it off the front left corner of the bed (i place a box here to collect)
+
+# monitor VisionGrabberLauncher in real time to check for errors
 journalctl -fu VisionGrabberLauncher.service
 
-## Every boot, do the following:
-# manual reset of the SKR board
-# restart the klipper service
-sudo systemctl restart klipper.service 
-# firmware reset
-sudo python send_cmd.py "FIRMWARE_RESTART"
-# test the connection
-python klipper_test.py
-# restart the launcher service
-sudo systemctl restart VisionGrabberLauncher.service 
+# unplugging the button will stop VisionGrabberLauncher.service - replugging will restart the service
 
-## when the button is lit, the system is waiting for a button press
 
-## if the button is unplugged, the launcher service will be automatically disabled, then renabled when it's plugged back in
 
