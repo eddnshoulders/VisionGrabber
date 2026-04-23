@@ -123,10 +123,11 @@ private:
     void handleG28(const ParsedCommand& cmd);
     void handleG0(const ParsedCommand& cmd);
     void handleM400(const ParsedCommand& cmd);
-    void handleStop(const ParsedCommand& cmd);
+    void handleSTOP(const ParsedCommand& cmd);
     void handleM114(const ParsedCommand& cmd);
     void handleM119(const ParsedCommand& cmd);
     void handleM280(const ParsedCommand& cmd);
+    void handleSTATE(const ParsedCommand& cmd);
 };
 
 #endif /* SRC_MACHINE_H_ */

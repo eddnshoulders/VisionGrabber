@@ -157,10 +157,11 @@ void Machine::handleCommand(const ParsedCommand& cmd)
 	if (strcmp(cmd.cmd, "G28") == 0) { handleG28(cmd); return; }
     if (strcmp(cmd.cmd, "G0")  == 0) { handleG0(cmd);  return; }
     if (strcmp(cmd.cmd, "M400") == 0) { handleM400(cmd); return; }
-    if (strcmp(cmd.cmd, "STOP") == 0) { handleStop(cmd); return; }
+    if (strcmp(cmd.cmd, "STOP") == 0) { handleSTOP(cmd); return; }
     if (strcmp(cmd.cmd, "M114") == 0) { handleM114(cmd); return; }
     if (strcmp(cmd.cmd, "M119") == 0) { handleM119(cmd); return; }
     if (strcmp(cmd.cmd, "M280") == 0) { handleM280(cmd); return; }
+    if (strcmp(cmd.cmd, "STATE") == 0) { handleSTATE(cmd); return; }
 
     sendError("error: unknown command\n");
 }
@@ -202,15 +203,13 @@ void Machine::handleM400(const ParsedCommand& cmd)
     // else -- ok sent when move completes in update()
 }
 
-void Machine::handleStop(const ParsedCommand& cmd)
+void Machine::handleSTOP(const ParsedCommand& cmd)
 {
     icorexy_.stop();
     istepper_z_.stop();
     setState(MachineState::IDLE);
     sendOk();
-}
-
-void Machine::handleG28(const ParsedCommand& cmd)
+}void Machine::handleG28(const ParsedCommand& cmd)
 {
     if (state_ == MachineState::MOVING) { sendBusy(); return; }
     startHomingX();
@@ -253,6 +252,8 @@ void Machine::handleM280(const ParsedCommand& cmd)
     }
     sendOk();
 }
+
+void Machine::handleSTATE(const ParsedCommand& cmd) { sendState(); }
 
 void Machine::startHomingX(void)
 {
