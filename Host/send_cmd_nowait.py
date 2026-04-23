@@ -3,8 +3,9 @@
 import serial
 import sys
 import time
+from config import *
 
-ser = serial.Serial("/dev/ttyAMA0", 115200, timeout=30)
+ser = serial.Serial(MACHINE_UART, MACHINE_BAUDRATE, timeout=30)
 time.sleep(0.1)  # let port settle
 
 cmd = " ".join(sys.argv[1:]) + "\n"

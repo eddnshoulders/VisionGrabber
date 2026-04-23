@@ -13,7 +13,7 @@ def home(machine):
         machine.gcode("G28")
 
     # Bed down, gripper open
-    machine.gcode(f"G0 Z{Z_BED_DOWN} F{BED_FEEDRATE}")
+    machine.gcode(f"G0 X120 Y120 Z{Z_BED_DOWN} F{BED_FEEDRATE}")
     machine.gcode(GRIPPER_OPEN)
 
 def wait_BTN(ser):
@@ -33,7 +33,7 @@ def main():
     ser = serial.Serial(BUTTON_PORT, BUTTON_BAUDRATE, timeout=0.2, dsrdtr = True)
 
     # Avoid immediate traffic while the MCU reboots/settles
-    time.sleep(0.5)
+    time.sleep(2)
 
     ser.reset_input_buffer()
     ser.reset_output_buffer()
