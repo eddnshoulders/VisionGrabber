@@ -14,7 +14,7 @@ def home(machine):
 
     # Bed down, gripper open
     machine.gcode(f"G0 X120 Y120 Z{Z_BED_DOWN} F{BED_FEEDRATE}")
-    machine.gcode(GRIPPER_OPEN)
+    machine.gcode(f"M280 S{GRIPPER_OPEN}")
 
 def wait_BTN(ser):
     print("Waiting for button")

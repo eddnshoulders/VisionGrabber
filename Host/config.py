@@ -23,14 +23,14 @@ STEP_SETTLE_TIME  = 0.1
 Z_BED_DOWN        = 40
 Z_BED_UP          = 5
 
-GRIPPER_OPEN      = "M280 S23"
-GRIPPER_CLOSE     = "M280 S128"
+GRIPPER_OPEN      = 23
+GRIPPER_CLOSE     = 128
 
 DROP_X            = 20
 DROP_Y            = 0
 
 PICKUP_CX         = 308
-PICKUP_CY         = 238
+PICKUP_CY         = 220
 IMAGE_CX          = 320
 IMAGE_CY          = 240
 SCALE_X           = -12

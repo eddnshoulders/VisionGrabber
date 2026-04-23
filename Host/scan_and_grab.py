@@ -118,7 +118,7 @@ def scan_and_grab(machine):    # Scan -- snake pattern
     # Pick sequence
     print("\nPicking up cylinder...")
     machine.move_and_wait(f"G0 Z{Z_BED_UP} F{BED_FEEDRATE}")
-    machine.gcode(GRIPPER_CLOSE)
+    machine.gcode(f"M280 S{GRIPPER_CLOSE}")
     time.sleep(1)
     machine.move_and_wait(f"G0 Z{Z_BED_DOWN} F{BED_FEEDRATE}")
 
@@ -128,7 +128,7 @@ def scan_and_grab(machine):    # Scan -- snake pattern
 
     # Drop
     print("Dropping cylinder.")
-    machine.gcode(GRIPPER_OPEN)
+    machine.gcode(f"M280 S{GRIPPER_OPEN}")
     time.sleep(0.5)
 
     print("\nDone.")
