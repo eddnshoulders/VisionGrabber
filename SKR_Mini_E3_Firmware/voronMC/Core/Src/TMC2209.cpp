@@ -9,7 +9,7 @@
 #include "TMC2209.h"
 #include <cstring>
 
-static constexpr uint8_t SYNC_BYTE    = 0x05;
+static constexpr uint8_t SYNC_BYTE    = 0xF5;
 static constexpr uint8_t WRITE_BIT    = 0x80;
 static constexpr uint16_t WRITE_LEN    = 8;
 static constexpr uint16_t READ_REQ_LEN = 4;
@@ -17,9 +17,11 @@ static constexpr uint16_t READ_RSP_LEN = 8;
 
 // Register addresses
 static constexpr uint8_t REG_GCONF      = 0x00;
+static constexpr uint8_t REG_GSTAT      = 0x01;
 static constexpr uint8_t REG_IFCNT      = 0x02;
 static constexpr uint8_t REG_IHOLD_IRUN = 0x10;
 static constexpr uint8_t REG_CHOPCONF   = 0x6C;
+static constexpr uint8_t REG_DRVSTATUS  = 0x6F;
 static constexpr uint8_t REG_SGTHRS     = 0x40;
 static constexpr uint8_t REG_SG_RESULT  = 0x41;
 static constexpr uint8_t REG_TCOOLTHRS  = 0x14;
@@ -225,6 +227,24 @@ TMC2209Config TMC2209::readConfig(void) {
 	config.sg_threshold = sgthrs & 0xFF;
 
 	return config;
+}
+
+bool TMC2209::errorCheck(void) {
+	// read the values of GSTAT and DRVSTATUS
+	uint32_t GSTAT_val = 0;
+	readRegister(REG_GSTAT, GSTAT_val);
+
+	uint32_t DRVSTATUS_val = 0;
+	readRegister(REG_DRVSTATUS, DRVSTATUS_val);
+
+	uint32_t GSTAT_bm = 0b110;
+	uint32_t DRVSTATUS_bm = 0b11100111111;
+
+	bool GSTAT_err = GSTAT_val & GSTAT_bm;
+	bool DRVSTATUS_err = DRVSTATUS_val & DRVSTATUS_bm;
+
+	if (GSTAT_err || DRVSTATUS_err) { return true; }
+	else{ return false; }
 }
 
 TMC2209::~TMC2209(void) = default;

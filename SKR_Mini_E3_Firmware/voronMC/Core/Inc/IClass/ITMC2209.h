@@ -34,6 +34,7 @@ public:
 	virtual void disable(void) = 0;
 	virtual TMC2209Config readConfig(void) = 0;
 	virtual uint8_t calcCRC(uint8_t* data, uint8_t len) = 0;	// CRC
+	virtual bool errorCheck(void) = 0;
 	virtual bool isConnected(void) = 0;		    				// Read IFCNT register to verify comms are working
 
     virtual ~ITMC2209(void) = default;

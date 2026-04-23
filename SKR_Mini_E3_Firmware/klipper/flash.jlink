@@ -1,4 +1,0 @@
-loadbin klipper.bin, 0x08007000
-r
-g
-q

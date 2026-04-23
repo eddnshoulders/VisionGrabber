@@ -52,8 +52,9 @@ public:
 			IServo& iservo,
 			IUART& iuart);
 
-    void init();
-    void update();  // called from main loop
+    void init(void);
+    void disable(void);
+    void update(void);  // called from main loop
 
     // Command dispatch -- called from main loop when command_ready
     void handleCommand(const ParsedCommand& cmd);
@@ -81,20 +82,20 @@ public:
 
     // State transitions
     void setState(MachineState new_state);
-    void sendState();
+    void sendState(void);
 
-    void startHomingX();
-    void startHomingXFast();
-    void startHomingXStepback();
-    void startHomingXSlow();
-    void startHomingY();
-    void startHomingYFast();
-    void startHomingYStepback();
-    void startHomingYSlow();
-    void startHomingZ();
-    void startHomingZFast();
-    void startHomingZStepback();
-    void startHomingZSlow();
+    void startHomingX(void);
+    void startHomingXFast(void);
+    void startHomingXStepback(void);
+    void startHomingXSlow(void);
+    void startHomingY(void);
+    void startHomingYFast(void);
+    void startHomingYStepback(void);
+    void startHomingYSlow(void);
+    void startHomingZ(void);
+    void startHomingZFast(void);
+    void startHomingZStepback(void);
+    void startHomingZSlow(void);
 
     virtual ~Machine(void);
 

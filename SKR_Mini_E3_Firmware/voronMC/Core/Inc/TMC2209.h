@@ -27,6 +27,7 @@ public:
     TMC2209Config readConfig(void) override;
     uint8_t calcCRC(uint8_t* data, uint8_t len) override;	// CRC
     bool isConnected(void) override;						// Read IFCNT register to verify comms are working
+    bool errorCheck(void) override;
     virtual ~TMC2209(void) override;
 
 private:

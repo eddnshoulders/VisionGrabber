@@ -17,6 +17,7 @@
 #include "Machine.h"
 #include "Config.h"
 #include "Servo.h"
+#include "stm32f1xx_it.h"
 #include <cstdio>
 #include <cmath>
 
@@ -33,7 +34,8 @@ extern UART_HandleTypeDef huart2;
 extern UART_HandleTypeDef huart4;
 uint8_t rx_byte;
 volatile bool command_parsed;
-volatile bool tmc_test;
+bool tmc_err = false;
+uint32_t now;
 
 volatile uint32_t tim1_isr_count = 0;
 volatile uint32_t tim2_isr_count = 0;
@@ -108,22 +110,72 @@ Machine machine(corexy,
 				servo,
 				uartimpcmd);
 
+static bool err_a;
+static bool err_b;
+static bool err_z;
+
+static periodic_task_t tasks[] = {
+	{run_task_1ms, 1, 0},
+	{run_task_10ms, 10, 0},
+	{run_task_100ms, 100, 0},
+	{run_task_1s, 1000, 0},
+};
+
+#define NUM_TASKS (sizeof(tasks) / sizeof(tasks[0]))
+static bool time_due(uint32_t now, uint32_t scheduled) { return (int32_t)(now - scheduled) >= 0; }
+
 extern "C" void app_on_xy_stall()    { machine.onXYStall(); }
 extern "C" void app_on_z_endstop()  { machine.onZEndstop(); }
 
-void app_user2() {
+
+void app_init() {
 	HAL_GPIO_WritePin(GPIOB,AEN_Pin|BEN_Pin|ZEN_Pin, GPIO_PIN_SET);	// disable all stepper driver outputs
 	HAL_UART_Receive_IT(&huart2, &rx_byte, 1); // enable RX interrupt on command UART
+
 	machine.init();
+
+	// init the task times first run
+    uint32_t now = HAL_GetTick();
+    for (uint32_t i = 0; i < NUM_TASKS; i++) { tasks[i].next_run = now + tasks[i].period_ms; }
 }
 
-void app_user_while() {
+void app_while() {
+	if (tmc_err) {
+		machine.disable();
+		HardFault_Handler();
+	}
+
+	// update task next_run times
+	uint32_t now = HAL_GetTick();
+    for (uint32_t i = 0; i < NUM_TASKS; i++) {
+        if (time_due(now, tasks[i].next_run)) {
+            tasks[i].fcn();
+            tasks[i].next_run += tasks[i].period_ms;
+        }
+    }
+}
+
+void run_task_1ms(void) {
+    // check for user command receipt
 	if (command_parsed) {
 		command_parsed = false;
 		machine.handleCommand(parser.getCommand());
 	}
-	machine.update();
+}
 
+void run_task_10ms(void) {
+	machine.update();
+}
+
+void run_task_100ms(void) {
+
+}
+
+void run_task_1s(void) {
+	err_a = tmc_a.errorCheck();
+	err_b = tmc_b.errorCheck();
+	err_z = tmc_z.errorCheck();
+	if (err_a || err_b || err_z) { tmc_err = true; }
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {

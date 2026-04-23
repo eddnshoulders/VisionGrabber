@@ -107,14 +107,14 @@ int main(void)
   MX_UART4_Init();
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-  app_user2();
-  /* USER CODE END 2 */
 
+  /* USER CODE END 2 */
+  app_init();
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-	app_user_while();
+	app_while();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

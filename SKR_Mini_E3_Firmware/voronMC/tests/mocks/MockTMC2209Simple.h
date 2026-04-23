@@ -24,6 +24,7 @@ public:
     void disable(void) override {}
     TMC2209Config readConfig(void) override { return TMC2209Config{}; }
     uint8_t calcCRC(uint8_t* data, uint8_t len) override { return 0; }
+    bool errorCheck(void) override {}
     bool isConnected(void) override { return true; }
 
     bool init_called = false;

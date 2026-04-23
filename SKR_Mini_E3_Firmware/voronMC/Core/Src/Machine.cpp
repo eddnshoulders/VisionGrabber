@@ -34,7 +34,7 @@ Machine::Machine(ICoreXY& icorexy,
 	  iservo_(iservo),
 	  iuart_(iuart) {}
 
-void Machine::init()
+void Machine::init(void)
 {
 	char tx_msg[32];
 	if (!(itmc_a_.isConnected() && itmc_b_.isConnected() && itmc_z_.isConnected())) {
@@ -57,7 +57,14 @@ void Machine::init()
     sendState();
 }
 
-void Machine::update()
+void Machine::disable(void) {
+	icorexy_.disable();
+	istepper_z_.disable();
+	setState(MachineState::FAULT);
+	sendState();
+}
+
+void Machine::update(void)
 {
     switch (state_) {
 
@@ -100,7 +107,7 @@ void Machine::update()
 
 void Machine::setState(MachineState new_state) { state_ = new_state; }
 
-void Machine::sendState()
+void Machine::sendState(void)
 {
 	const char* name = "UNKNOWN\n";
 	switch(state_) {
@@ -127,14 +134,14 @@ void Machine::sendState()
 	iuart_.UART_Transmit((uint8_t*)name, strlen(name));
 }
 
-void Machine::sendOk()
+void Machine::sendOk(void)
 {
     const char* msg = "ok\n";
     iuart_.UART_Transmit((uint8_t*)msg, strlen(msg));
     //HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
 }
 
-void Machine::sendBusy()
+void Machine::sendBusy(void)
 {
     const char* msg = "busy\n";
     iuart_.UART_Transmit((uint8_t*)msg, strlen(msg));
@@ -247,28 +254,28 @@ void Machine::handleM280(const ParsedCommand& cmd)
     sendOk();
 }
 
-void Machine::startHomingX()
+void Machine::startHomingX(void)
 {
     setState(MachineState::HOMING_X_INITIAL_STEPBACK);
     icorexy_.move(-HOMING_STEPBACK_XY, 0.0f, HOMING_FEEDRATE_FAST_XY, ACCEL_XY_MM_S2);
     //sendState();
 }
 
-void Machine::startHomingXFast()
+void Machine::startHomingXFast(void)
 {
     setState(MachineState::HOMING_X_FAST);
     icorexy_.move(HOMING_DISTANCE_XY, 0.0f, HOMING_FEEDRATE_FAST_XY, ACCEL_XY_MM_S2);
     //sendState();
 }
 
-void Machine::startHomingXStepback()
+void Machine::startHomingXStepback(void)
 {
     setState(MachineState::HOMING_X_STEPBACK);
     icorexy_.move(-HOMING_STEPBACK_XY, 0.0f, HOMING_FEEDRATE_FAST_XY, ACCEL_XY_MM_S2);
     //sendState();
 }
 
-void Machine::startHomingXSlow()
+void Machine::startHomingXSlow(void)
 {
     setState(MachineState::HOMING_X_SLOW);
     icorexy_.move(HOMING_DISTANCE_XY, 0.0f, HOMING_FEEDRATE_SLOW_XY, HOMING_ACCEL_XY);
@@ -277,28 +284,28 @@ void Machine::startHomingXSlow()
 
 // ── Y homing ─────────────────────────────────────────────────────────────────
 
-void Machine::startHomingY()
+void Machine::startHomingY(void)
 {
     setState(MachineState::HOMING_Y_INITIAL_STEPBACK);
     icorexy_.move(0.0f, -HOMING_STEPBACK_XY, HOMING_FEEDRATE_FAST_XY, ACCEL_XY_MM_S2);
     //sendState();
 }
 
-void Machine::startHomingYFast()
+void Machine::startHomingYFast(void)
 {
     setState(MachineState::HOMING_Y_FAST);
     icorexy_.move(0.0f, HOMING_DISTANCE_XY, HOMING_FEEDRATE_FAST_XY, ACCEL_XY_MM_S2);
     //sendState();
 }
 
-void Machine::startHomingYStepback()
+void Machine::startHomingYStepback(void)
 {
     setState(MachineState::HOMING_Y_STEPBACK);
     icorexy_.move(0.0f, -HOMING_STEPBACK_XY, HOMING_FEEDRATE_FAST_XY, ACCEL_XY_MM_S2);
     //sendState();
 }
 
-void Machine::startHomingYSlow()
+void Machine::startHomingYSlow(void)
 {
     setState(MachineState::HOMING_Y_SLOW);
     icorexy_.move(0.0f, HOMING_DISTANCE_XY, HOMING_FEEDRATE_SLOW_XY, HOMING_ACCEL_XY);
@@ -307,34 +314,34 @@ void Machine::startHomingYSlow()
 
 // ── Z homing ─────────────────────────────────────────────────────────────────
 
-void Machine::startHomingZ()
+void Machine::startHomingZ(void)
 {
     setState(MachineState::HOMING_Z_INITIAL_STEPBACK);
     istepper_z_.move(HOMING_STEPBACK_Z, HOMING_FEEDRATE_FAST_Z, ACCEL_Z_MM_S2);
     //sendState();
 }
 
-void Machine::startHomingZFast()
+void Machine::startHomingZFast(void)
 {
     setState(MachineState::HOMING_Z_FAST);
     istepper_z_.move(-HOMING_DISTANCE_Z, HOMING_FEEDRATE_FAST_Z, ACCEL_Z_MM_S2);
     //sendState();
 }
-void Machine::startHomingZStepback()
+void Machine::startHomingZStepback(void)
 {
     setState(MachineState::HOMING_Z_STEPBACK);
     istepper_z_.move(HOMING_STEPBACK_Z, HOMING_FEEDRATE_FAST_Z, ACCEL_Z_MM_S2);
     //sendState();
 }
 
-void Machine::startHomingZSlow()
+void Machine::startHomingZSlow(void)
 {
     setState(MachineState::HOMING_Z_SLOW);
     istepper_z_.move(-HOMING_DISTANCE_Z, HOMING_FEEDRATE_SLOW_Z, HOMING_ACCEL_Z);
     //sendState();
 }
 
-void Machine::onXYStall()
+void Machine::onXYStall(void)
 {
     switch (state_) {
         case MachineState::HOMING_X_FAST:
@@ -360,7 +367,7 @@ void Machine::onXYStall()
     }
 }
 
-void Machine::onZEndstop()
+void Machine::onZEndstop(void)
 {
     switch (state_) {
         case MachineState::HOMING_Z_FAST:
