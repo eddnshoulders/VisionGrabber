@@ -1,0 +1,9 @@
+flask
+flask-sock
+markupSafe
+numpy
+opencv-python-headless
+requests
+pyserial
+
+
