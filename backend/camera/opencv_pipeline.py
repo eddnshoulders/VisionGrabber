@@ -2,10 +2,18 @@
 OpenCV detection pipeline for VisionGrabber.
 
 Stateless functions - takes a frame and params, returns annotated frames
-and a detection result. Called by CameraThread on each captured frame.
+and a list of all accepted detections. Called by CameraThread on each
+captured frame.
+
+Multiple detections are returned in descending area order. Callers choose
+which detection(s) to use based on their context:
+  - Sequence coordinator: largest detection = target cylinder
+  - Calibration routine:  smallest detection = toolhead circle
+  - ML layer (future):    all detections passed to classifier
 """
 
 import logging
+import time
 from dataclasses import dataclass
 from typing import Optional
 
@@ -24,18 +32,19 @@ def _odd(n: int) -> int:
 
 @dataclass
 class DetectionResult:
-    """Result of circle detection on a single frame."""
-    detected:    bool
-    px:          Optional[int]   = None  # pixel x of detected circle centre
-    py:          Optional[int]   = None  # pixel y of detected circle centre
-    radius:      Optional[int]   = None
-    area:        Optional[float] = None
-    circularity: Optional[float] = None
-    timestamp:   Optional[float] = None
+    """
+    Result of circle detection for a single detected object in a frame.
+    A pipeline run returns a list of these, one per accepted contour.
+    """
+    px:          int
+    py:          int
+    radius:      int
+    area:        float
+    circularity: float
+    timestamp:   float
 
     def to_dict(self) -> dict:
         return {
-            "detected":    self.detected,
             "px":          self.px,
             "py":          self.py,
             "radius":      self.radius,
@@ -45,28 +54,62 @@ class DetectionResult:
         }
 
 
+@dataclass
+class PipelineResult:
+    """
+    Full result of one pipeline run.
+    detections is sorted largest area first.
+    """
+    detections: list[DetectionResult]
+    frames:     dict[str, np.ndarray]
+    timestamp:  float
+
+    @property
+    def detected(self) -> bool:
+        return len(self.detections) > 0
+
+    @property
+    def best(self) -> Optional[DetectionResult]:
+        """Largest detected object - target cylinder in normal operation."""
+        return self.detections[0] if self.detections else None
+
+    @property
+    def smallest(self) -> Optional[DetectionResult]:
+        """Smallest detected object - toolhead circle during calibration."""
+        return self.detections[-1] if self.detections else None
+
+    @property
+    def count(self) -> int:
+        return len(self.detections)
+
+    def to_dict(self) -> dict:
+        return {
+            "detected":   self.detected,
+            "count":      self.count,
+            "detections": [d.to_dict() for d in self.detections],
+            "timestamp":  self.timestamp,
+        }
+
+
 def run_pipeline(
     frame_bgr: np.ndarray,
     params: CameraParams,
-) -> tuple[dict[str, np.ndarray], DetectionResult]:
+) -> PipelineResult:
     """
     Run the full detection pipeline on a single frame.
 
-    Returns:
-        frames    - dict of named debug views (raw, gray, mask, contours,
-                    annotated, tiled)
-        detection - DetectionResult for the best accepted circle
+    Returns a PipelineResult containing all accepted detections (sorted
+    largest area first) and all debug frame views.
     """
-    import time
     ts  = time.time()
     raw = frame_bgr.copy()
     p   = params
 
-    # ── Preprocessing ────────────────────────────────────────────────
+    # Preprocessing
     gray = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (_odd(p.blur_kernel),) * 2, 0)
 
-    # ── Threshold / mask ─────────────────────────────────────────────
+    # Threshold / mask
     if p.threshold_mode == "hsv":
         hsv  = cv2.cvtColor(raw, cv2.COLOR_BGR2HSV)
         lo1  = np.array([p.hsv_h1_lo, p.hsv_s_lo, p.hsv_v_lo])
@@ -94,12 +137,12 @@ def run_pipeline(
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN,  k)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k)
 
-    # ── ROI ──────────────────────────────────────────────────────────
+    # ROI
     roi = np.zeros_like(mask)
     roi[p.roi_y_min:p.roi_y_max, p.roi_x_min:p.roi_x_max] = 255
     mask = cv2.bitwise_and(mask, roi)
 
-    # ── Contour detection ────────────────────────────────────────────
+    # Contour detection
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL,
                                    cv2.CHAIN_APPROX_SIMPLE)
     accepted = []
@@ -118,41 +161,61 @@ def run_pipeline(
         if not (p.min_radius <= radius <= p.max_radius):
             continue
         accepted.append({
-            "contour": c, "center": (int(x), int(y)),
-            "radius": radius, "area": float(area),
+            "contour":     c,
+            "center":      (int(x), int(y)),
+            "radius":      radius,
+            "area":        float(area),
             "circularity": float(circ),
         })
 
-    best = max(accepted, key=lambda a: a["area"]) if accepted else None
+    # Sort largest area first
+    accepted.sort(key=lambda a: a["area"], reverse=True)
 
-    # ── Build debug views ────────────────────────────────────────────
+    detections = [
+        DetectionResult(
+            px=item["center"][0],
+            py=item["center"][1],
+            radius=item["radius"],
+            area=item["area"],
+            circularity=item["circularity"],
+            timestamp=ts,
+        )
+        for item in accepted
+    ]
+
+    # Build debug views
     contours_vis = raw.copy()
     annotated    = raw.copy()
 
     if p.show_all_contours:
         cv2.drawContours(contours_vis, contours, -1, (0, 0, 255), 1)
+
     if p.show_accepted_contours:
         for item in accepted:
             cv2.drawContours(contours_vis, [item["contour"]], -1, (0, 255, 0), 2)
             cv2.circle(contours_vis, item["center"], item["radius"],
                        (255, 0, 0), 1)
 
-    if best:
-        x, y, r = best["center"][0], best["center"][1], best["radius"]
-        cv2.circle(annotated, (x, y), r, (0, 255, 0), 2)
-        cv2.circle(annotated, (x, y), 2, (0, 255, 255), -1)
+    # Annotate all detections - largest in green, others in yellow
+    for i, (item, det) in enumerate(zip(accepted, detections)):
+        colour = (0, 255, 0) if i == 0 else (0, 255, 255)
+        x, y, r = det.px, det.py, det.radius
+        cv2.circle(annotated, (x, y), r, colour, 2)
+        cv2.circle(annotated, (x, y), 2, colour, -1)
         cv2.putText(annotated,
-                    f"x={x} y={y} r={r} A={best['area']:.0f} "
-                    f"C={best['circularity']:.2f}",
-                    (10, 48), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
-                    (0, 255, 0), 2, cv2.LINE_AA)
-    else:
+                    f"#{i+1} x={x} y={y} r={r} "
+                    f"A={det.area:.0f} C={det.circularity:.2f}",
+                    (10, 48 + i * 20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, colour, 1, cv2.LINE_AA)
+
+    if not detections:
         cv2.putText(annotated, "No detection",
                     (10, 48), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
                     (0, 0, 255), 2, cv2.LINE_AA)
 
-    cv2.putText(annotated, p.debug_view,
-                (10, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.6,
+    cv2.putText(annotated,
+                f"{p.debug_view}  [{len(detections)} detected]",
+                (10, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.55,
                 (0, 255, 0), 2, cv2.LINE_AA)
     cv2.rectangle(annotated,
                   (p.roi_x_min, p.roi_y_min),
@@ -177,14 +240,8 @@ def run_pipeline(
         "tiled":     tiled,
     }
 
-    detection = DetectionResult(
-        detected=best is not None,
-        px=best["center"][0] if best else None,
-        py=best["center"][1] if best else None,
-        radius=best["radius"] if best else None,
-        area=best["area"] if best else None,
-        circularity=best["circularity"] if best else None,
+    return PipelineResult(
+        detections=detections,
+        frames=frames,
         timestamp=ts,
     )
-
-    return frames, detection

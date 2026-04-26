@@ -20,7 +20,7 @@ from typing import Optional
 import cv2
 import numpy as np
 
-from camera.opencv_pipeline import run_pipeline, DetectionResult
+from camera.opencv_pipeline import run_pipeline, PipelineResult
 from camera.params import CameraParams, load_params, save_params
 from config import (
     TOOLHEAD_CAMERA_INDEX,
@@ -57,13 +57,13 @@ class CameraThread(threading.Thread):
             "raw": None, "gray": None, "mask": None,
             "contours": None, "annotated": None, "tiled": None,
         }
-        self._latest_detection: Optional[DetectionResult] = None
+        self._latest_detection: Optional[PipelineResult] = None
         self._fps    = 0.0
         self._running = True
 
         # Single-frame request mechanism
         self._single_event  = threading.Event()
-        self._single_result: Optional[DetectionResult] = None
+        self._single_result: Optional[PipelineResult] = None
 
     # ------------------------------------------------------------------
     # Public interface
@@ -79,7 +79,7 @@ class CameraThread(threading.Thread):
         return self._fps
 
     @property
-    def latest_detection(self) -> Optional[DetectionResult]:
+    def latest_detection(self) -> Optional[PipelineResult]:
         with self._frame_lock:
             return self._latest_detection
 
@@ -93,10 +93,10 @@ class CameraThread(threading.Thread):
             self._mode = CameraMode.IDLE
         logger.info(f"[{self.name}] Streaming stopped")
 
-    def capture_single(self, timeout: float = 5.0) -> Optional[DetectionResult]:
+    def capture_single(self, timeout: float = 5.0) -> Optional[PipelineResult]:
         """
         Request a single frame capture and block until result is available.
-        Returns DetectionResult or None on timeout.
+        Returns PipelineResult or None on timeout.
         """
         with self._mode_lock:
             prev_mode = self._mode
@@ -174,14 +174,14 @@ class CameraThread(threading.Thread):
             last_t = now
             self._fps = 0.85 * self._fps + 0.15 * (1.0 / dt)
 
-            frames, detection = run_pipeline(raw, self.params)
+            result = run_pipeline(raw, self.params)
 
             with self._frame_lock:
-                self._frames.update(frames)
-                self._latest_detection = detection
+                self._frames.update(result.frames)
+                self._latest_detection = result
 
             if mode == CameraMode.SINGLE:
-                self._single_result = detection
+                self._single_result = result
                 self._single_event.set()
 
             time.sleep(1.0 / max(1, self.params.stream_fps))

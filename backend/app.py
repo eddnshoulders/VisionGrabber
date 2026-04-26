@@ -22,7 +22,9 @@ from api.websocket import ws_manager
 from api.routes.sequence import sequence_bp
 from api.routes.camera import camera_bp
 from api.routes.machine import machine_bp
+from api.routes.calibration import calibration_bp
 from camera.camera_thread import CameraThread, CameraId
+from camera.calibration import CalibrationManager
 from machine.heartbeat import HeartbeatPoller
 from machine.ipc import ipc_client
 from sequence.coordinator import SequenceCoordinator
@@ -59,9 +61,10 @@ def ws_handler(ws):
 # ---------------------------------------------------------------------------
 # REST blueprints
 # ---------------------------------------------------------------------------
-app.register_blueprint(sequence_bp,  url_prefix="/api/sequence")
-app.register_blueprint(camera_bp,    url_prefix="/api/camera")
-app.register_blueprint(machine_bp,   url_prefix="/api/machine")
+app.register_blueprint(sequence_bp,     url_prefix="/api/sequence")
+app.register_blueprint(camera_bp,       url_prefix="/api/camera")
+app.register_blueprint(machine_bp,      url_prefix="/api/machine")
+app.register_blueprint(calibration_bp,  url_prefix="/api/calibration")
 
 # ---------------------------------------------------------------------------
 # Serve frontend (production)
@@ -89,16 +92,6 @@ def _start_background_services():
     overhead_cam.start()
     logger.info("Camera threads started")
 
-    # Sequence coordinator (owns the state machine)
-    coordinator = SequenceCoordinator(
-        toolhead_cam=toolhead_cam,
-        overhead_cam=overhead_cam,
-        ipc=ipc_client,
-        ws=ws_manager,
-    )
-    coordinator.start()
-    logger.info("Sequence coordinator started")
-
     # Heartbeat poller (STATE command to launcher every ~2s)
     heartbeat = HeartbeatPoller(
         ipc=ipc_client,
@@ -109,12 +102,39 @@ def _start_background_services():
     heartbeat.start()
     logger.info("Heartbeat poller started")
 
+    # Calibration manager (loads existing calibration if available)
+    calibration = CalibrationManager(
+        ipc=ipc_client,
+        overhead_cam=overhead_cam,
+    )
+    calibration.set_progress_callback(
+        lambda p: ws_manager.emit_raw({
+            "type": "calibration.progress",
+            "ts": int(__import__("time").time() * 1000),
+            "payload": p,
+        })
+    )
+    logger.info(f"Calibration manager ready "
+                f"(calibrated: {calibration.is_calibrated})")
+
+    # Sequence coordinator (owns the state machine)
+    coordinator = SequenceCoordinator(
+        toolhead_cam=toolhead_cam,
+        overhead_cam=overhead_cam,
+        ipc=ipc_client,
+        ws=ws_manager,
+        calibration=calibration,
+    )
+    coordinator.start()
+    logger.info("Sequence coordinator started")
+
     # Store references so they aren't garbage collected
     app.extensions["vg"] = {
         "toolhead_cam": toolhead_cam,
         "overhead_cam":  overhead_cam,
         "coordinator":  coordinator,
         "heartbeat":    heartbeat,
+        "calibration":  calibration,
     }
 
 # ---------------------------------------------------------------------------

@@ -73,20 +73,20 @@ def frame(camera_id, label=None):
 
 @camera_bp.route("/<camera_id>/detect")
 def detect(camera_id):
-    """Latest detection result."""
-    det = _cam(camera_id).latest_detection
-    if det is None:
-        return jsonify({"detected": False})
-    return jsonify(det.to_dict())
+    """Latest detection result - all detected objects."""
+    result = _cam(camera_id).latest_detection
+    if result is None:
+        return jsonify({"detected": False, "count": 0, "detections": []})
+    return jsonify(result.to_dict())
 
 
 @camera_bp.route("/<camera_id>/detect/single", methods=["POST"])
 def detect_single(camera_id):
-    """Trigger a single-frame capture and return the result."""
+    """Trigger a single-frame capture and return all detections."""
     result = _cam(camera_id).capture_single(timeout=10.0)
     if result is None:
         return jsonify({"ok": False, "error": "capture timed out"}), 504
-    return jsonify({"ok": True, "detection": result.to_dict()})
+    return jsonify({"ok": True, **result.to_dict()})
 
 
 # ── Parameters ────────────────────────────────────────────────────────────────

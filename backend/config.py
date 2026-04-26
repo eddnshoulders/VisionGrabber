@@ -7,7 +7,7 @@ FLASK_DEBUG       = False
 
 # IPC
 IPC_SOCKET_PATH   = "/tmp/visiongrabber.sock"
-IPC_TIMEOUT       = 5.0
+IPC_TIMEOUT       = 120.00
 
 # Heartbeat
 HEARTBEAT_INTERVAL    = 2.0
@@ -73,3 +73,22 @@ OVERHEAD_CAMERA_INDEX = 1
 
 # Presets directory (relative to backend/)
 PRESETS_DIR       = "../presets"
+
+# Calibration grid
+CALIB_GRID_X           = 3      # points in X
+CALIB_GRID_Y           = 3      # points in Y
+CALIB_MARGIN_X_MIN     = 20.0   # mm from X minimum (SCAN_X_END)
+CALIB_MARGIN_X_MAX     = 25.0   # mm from X maximum (SCAN_X_START)
+CALIB_MARGIN_Y_MIN     = 60.0   # mm from Y minimum (SCAN_Y_END)
+CALIB_MARGIN_Y_MAX     = 10.0   # mm from Y maximum (SCAN_Y_START)
+
+# Grabber offset from toolhead circle centre (mm)
+CALIB_GRABBER_OFFSET_X = 0.0
+CALIB_GRABBER_OFFSET_Y = 0.0
+
+# Calibration data file
+CALIB_FILE             = "../presets/calibration.json"
+
+# Parallax correction
+CALIB_CAMERA_TO_TOOLHEAD  = 114.0   # mm, camera to calibration circle
+CALIB_CAMERA_TO_BED_DOWN  = 236.0   # mm, camera to cylinder top at Z_BED_DOWN

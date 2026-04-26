@@ -4,6 +4,7 @@ Sequence coordinator for VisionGrabber.
 Owns the top-level state machine. Responds to trigger events (button press,
 GUI start) and drives the full pick-and-place sequence.
 
+
 State transitions are driven by:
   - External triggers (start, stop, operator actions) via trigger()
   - Internal results (detection success/failure, move completion)
@@ -36,17 +37,9 @@ from api.messages import (
 )
 from api.websocket import WebSocketManager
 from camera.camera_thread import CameraThread
+from camera.calibration import CalibrationManager
 from machine.ipc import IpcClient
-from config import (
-    SCAN_X_START, SCAN_Y_START, Z_BED_DOWN, Z_BED_UP,
-    MOVE_FEEDRATE, BED_FEEDRATE,
-    GRIPPER_OPEN, GRIPPER_CLOSE,
-    DROP_X, DROP_Y,
-    PICKUP_CX, PICKUP_CY, IMAGE_CX, IMAGE_CY,
-    SCALE_X, SCALE_Y,
-    ALIGN_THRESH_X, ALIGN_THRESH_Y,
-    FINE_TUNE_TIMEOUT, FINE_TUNE_MAX_ATTEMPTS,
-)
+from config import *
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +47,14 @@ logger = logging.getLogger(__name__)
 class SequenceCoordinator(threading.Thread):
 
     def __init__(self, toolhead_cam: CameraThread, overhead_cam: CameraThread,
-                 ipc: IpcClient, ws: WebSocketManager):
+                 ipc: IpcClient, ws: WebSocketManager,
+                 calibration: CalibrationManager):
         super().__init__(daemon=True, name="SequenceCoordinator")
         self._toolhead_cam = toolhead_cam
         self._overhead_cam = overhead_cam
         self._ipc          = ipc
         self._ws           = ws
+        self._calibration  = calibration
 
         self._state        = SequenceState.STARTUP
         self._state_lock   = threading.Lock()
@@ -129,10 +124,9 @@ class SequenceCoordinator(threading.Thread):
     # ------------------------------------------------------------------
 
     def _startup(self):
-        """Wait for IPC and cameras to become available."""
-        logger.info("[Coordinator] Startup - waiting for services")
+        """Wait for IPC socket to become available then move to ready."""
+        logger.info("[Coordinator] Startup - waiting for IPC socket")
 
-        # Wait for launcher IPC socket
         for _ in range(30):
             if self._ipc.is_available():
                 break
@@ -141,8 +135,7 @@ class SequenceCoordinator(threading.Thread):
             self.hard_fault("Launcher IPC socket unavailable after 30s")
             return
 
-        # Home the machine
-        self._machine("G28")
+        logger.info("[Coordinator] IPC available - ready")
         self._set_state(SequenceState.READY)
         self._set_indicator(True)
 
@@ -227,7 +220,7 @@ class SequenceCoordinator(threading.Thread):
         result = self._overhead_cam.capture_single(timeout=10.0)
         if result is None or not result.detected:
             return False, 0
-        return True, 1  # count=1 for now; ML extension adds multi-cylinder
+        return True, result.count  # count = number of cylinders detected
 
     def _do_planning(self):
         self._set_state(SequenceState.PLANNING)
@@ -237,13 +230,15 @@ class SequenceCoordinator(threading.Thread):
         if result is None or not result.detected:
             return None
 
-        # Convert pixel coordinates to machine coordinates
-        # (direct line for now; path planner extension goes here)
-        dx = result.px - IMAGE_CX
-        dy = result.py - IMAGE_CY
-        target_x = SCAN_X_START + dx * (SCALE_X / 100.0)
-        target_y = SCAN_Y_START + dy * (SCALE_Y / 100.0)
-        return (target_x, target_y)
+        best   = result.best
+        target = self._calibration.pixel_to_machine(best.px, best.py)
+        if target is None:
+            logger.warning("[Coordinator] Cylinder outside calibrated boundary")
+            return None
+
+        logger.info(f"[Coordinator] Target: pixel ({best.px},{best.py}) "
+                    f"→ machine ({target[0]:.2f},{target[1]:.2f})")
+        return target
 
     def _do_move_to_pickup(self, target: tuple):
         self._set_state(SequenceState.MOVING_TO_PICKUP)
@@ -264,24 +259,63 @@ class SequenceCoordinator(threading.Thread):
                 if attempt >= FINE_TUNE_MAX_ATTEMPTS:
                     return False
 
+                time.sleep(0.5)
+
                 result = self._toolhead_cam.capture_single(timeout=3.0)
                 if result is None or not result.detected:
                     attempt += 1
                     continue
 
-                dx = result.px - PICKUP_CX
-                dy = result.py - PICKUP_CY
+                best = result.best
+                px   = best.px
+                py   = best.py
 
-                if abs(dx) <= ALIGN_THRESH_X and abs(dy) <= ALIGN_THRESH_Y:
+                # Get current machine position
+                pos = self._get_position()
+                if pos is None:
+                    attempt += 1
+                    continue
+
+                tx, ty, tz = pos
+
+                # Compute absolute target (same as original scan_and_grab.py)
+                offset_x = (px - PICKUP_CX) / SCALE_X
+                offset_y = (py - PICKUP_CY) / SCALE_Y
+                target_x = max(0, min(120, tx + offset_x))
+                target_y = max(0, min(120, ty + offset_y))
+
+                logger.info(
+                    f"[Coordinator] Align: px={px:.1f} py={py:.1f} "
+                    f"offset=({offset_x:.2f},{offset_y:.2f}) "
+                    f"target=({target_x:.2f},{target_y:.2f})"
+                )
+
+                self._machine(
+                    f"G0 X{target_x:.2f} Y{target_y:.2f} F{MOVE_FEEDRATE}"
+                )
+                time.sleep(STEP_SETTLE_TIME)
+
+                # Check residual
+                result2 = self._toolhead_cam.capture_single(timeout=3.0)
+                if result2 is None or not result2.detected:
+                    logger.warning("[Coordinator] No detection after alignment move")
+                    attempt += 1
+                    continue
+
+                best2  = result2.best
+                ofst_x = abs(best2.px - PICKUP_CX)
+                ofst_y = abs(best2.py - PICKUP_CY)
+
+                logger.info(
+                    f"[Coordinator] Residual: dx={ofst_x:.1f} dy={ofst_y:.1f} "
+                    f"(tol {ALIGN_THRESH_X}/{ALIGN_THRESH_Y})"
+                )
+
+                if ofst_x < ALIGN_THRESH_X and ofst_y < ALIGN_THRESH_Y:
                     logger.info(f"[Coordinator] Aligned after {attempt} attempts")
                     return True
 
-                move_x = dx * (SCALE_X / 100.0)
-                move_y = dy * (SCALE_Y / 100.0)
-                self._machine(f"G0 X{move_x:.2f} Y{move_y:.2f} "
-                              f"F{MOVE_FEEDRATE}")
                 attempt += 1
-                time.sleep(0.1)
 
             return False
 
@@ -291,10 +325,10 @@ class SequenceCoordinator(threading.Thread):
     def _do_pickup(self):
         self._set_state(SequenceState.PICKING_UP)
         logger.info("[Coordinator] Picking up")
-        self._machine(f"G0 Z{Z_BED_DOWN} F{BED_FEEDRATE}")
-        self._machine(f"M280 S{GRIPPER_CLOSE}")
-        time.sleep(0.5)
         self._machine(f"G0 Z{Z_BED_UP} F{BED_FEEDRATE}")
+        self._machine(f"M280 S{GRIPPER_CLOSE}")
+        time.sleep(1)
+        self._machine(f"G0 Z{Z_BED_DOWN} F{BED_FEEDRATE}")
         self._ws.emit(HealthGrabberMessage(
             payload=HealthGrabberPayload(status=GrabberState.CLOSED)
         ))
@@ -319,8 +353,7 @@ class SequenceCoordinator(threading.Thread):
         if result is None:
             return False
 
-        # If we detected an object before and none after, success
-        after_count = 1 if result.detected else 0
+        after_count = result.count
         return after_count < self._pre_pickup_count
 
     # ------------------------------------------------------------------
@@ -368,6 +401,18 @@ class SequenceCoordinator(threading.Thread):
         self._ws.emit(IndicatorReadyMessage(
             payload=IndicatorReadyPayload(on=on)
         ))
+
+    def _get_position(self) -> Optional[tuple[float, float, float]]:
+        """Fetch current machine position via M114. Returns (x, y, z) or None."""
+        import re
+        resp  = self._ipc.send("M114")
+        match = re.search(r"X:([\d.-]+)\s+Y:([\d.-]+)\s+Z:([\d.-]+)", resp)
+        if not match:
+            logger.warning(f"[Coordinator] Could not parse M114: {resp!r}")
+            return None
+        return (float(match.group(1)),
+                float(match.group(2)),
+                float(match.group(3)))
 
     def _machine(self, cmd: str) -> str:
         resp = self._ipc.send(cmd)

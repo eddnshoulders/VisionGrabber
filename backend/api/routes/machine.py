@@ -33,3 +33,17 @@ def command():
 def state():
     resp = current_app.extensions["vg"]["heartbeat"]._ipc.send("STATE")
     return jsonify({"response": resp})
+
+@machine_bp.route("/position")
+def position():
+    import re
+    resp  = current_app.extensions["vg"]["heartbeat"]._ipc.send("M114")
+    match = re.search(r"X:([\d.-]+)\s+Y:([\d.-]+)\s+Z:([\d.-]+)", resp)
+    if not match:
+        return jsonify({"ok": False, "raw": resp}), 502
+    return jsonify({
+        "ok": True,
+        "x": float(match.group(1)),
+        "y": float(match.group(2)),
+        "z": float(match.group(3)),
+    })

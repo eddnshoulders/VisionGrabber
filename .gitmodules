@@ -1,5 +1,5 @@
 [submodule "SKR_Mini_E3_Firmware/BIGTREETECH-SKR-mini-E3"]
-	path = SKR_Mini_E3_Firmware/BIGTREETECH-SKR-mini-E3
+	path = skr_mini_e3_firmware/BIGTREETECH-SKR-mini-E3
 	url = https://github.com/bigtreetech/BIGTREETECH-SKR-mini-E3.git
 [submodule "SKR_Mini_E3_Firmware/Button/Firmware"]
 	path = SKR_Mini_E3_Firmware/Button/Firmware

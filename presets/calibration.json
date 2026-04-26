@@ -1,0 +1,66 @@
+{
+  "points": [
+    {
+      "machine_x": 20.0,
+      "machine_y": 60.0,
+      "pixel_x": 399.4406779661017,
+      "pixel_y": 343.77966101694915
+    },
+    {
+      "machine_x": 57.5,
+      "machine_y": 60.0,
+      "pixel_x": 627.4406779661017,
+      "pixel_y": 340.8813559322034
+    },
+    {
+      "machine_x": 95.0,
+      "machine_y": 60.0,
+      "pixel_x": 850.1271186440678,
+      "pixel_y": 336.5338983050848
+    },
+    {
+      "machine_x": 20.0,
+      "machine_y": 85.0,
+      "pixel_x": 402.33898305084745,
+      "pixel_y": 495.9406779661017
+    },
+    {
+      "machine_x": 57.5,
+      "machine_y": 85.0,
+      "pixel_x": 631.3050847457628,
+      "pixel_y": 491.1101694915254
+    },
+    {
+      "machine_x": 95.0,
+      "machine_y": 85.0,
+      "pixel_x": 855.4406779661017,
+      "pixel_y": 484.8305084745763
+    },
+    {
+      "machine_x": 20.0,
+      "machine_y": 110.0,
+      "pixel_x": 405.72033898305085,
+      "pixel_y": 649.5508474576271
+    },
+    {
+      "machine_x": 57.5,
+      "machine_y": 110.0,
+      "pixel_x": 636.1355932203389,
+      "pixel_y": 643.7542372881355
+    },
+    {
+      "machine_x": 95.0,
+      "machine_y": 110.0,
+      "pixel_x": 861.7203389830509,
+      "pixel_y": 635.542372881356
+    }
+  ],
+  "boundary_x_min": 399.4406779661017,
+  "boundary_x_max": 861.7203389830509,
+  "boundary_y_min": 336.5338983050848,
+  "boundary_y_max": 649.5508474576271,
+  "grabber_offset_x": 0.0,
+  "grabber_offset_y": 0.0,
+  "image_height": 960.0,
+  "timestamp": 1777161341.0455449
+}
