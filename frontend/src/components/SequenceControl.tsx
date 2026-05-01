@@ -64,7 +64,7 @@ export function SequenceControl({ state }: Props) {
         marginBottom: 14,
       }}>
         <div style={{ fontSize: 15, fontWeight: "bold" }}>
-          {seq ? STATE_LABELS[seq] : "Connecting..."}
+          {seq ? STATE_LABELS[seq] : "Connecting to system..."}
         </div>
         {state.indicatorOn && (
           <div style={{ fontSize: 12, color: "#BA7517", marginTop: 4 }}>
@@ -86,14 +86,18 @@ export function SequenceControl({ state }: Props) {
         <div style={{ marginTop: 16, padding: 12, background: "#1a1200",
                       border: "1px solid #BA7517", borderRadius: 6 }}>
           <div style={{ fontWeight: "bold", color: "#e2b714", marginBottom: 8 }}>
-            Operator action required
+            {state.operatorFault === "operator_stop"
+              ? "Sequence stopped"
+              : "Operator action required"}
           </div>
           <div style={{ fontSize: 13, color: "#ccc", marginBottom: 10 }}>
-            Fault: {state.operatorFault?.replace(/_/g, " ")}
+            {state.operatorFault === "operator_stop"
+              ? "Machine halted. Reset to open gripper and home."
+              : `Fault: ${state.operatorFault?.replace(/_/g, " ")}`}
           </div>
 
-          {/* Evidence images */}
-          {state.operatorImage1 && (
+          {/* Evidence images - not shown for operator_stop */}
+          {state.operatorFault !== "operator_stop" && state.operatorImage1 && (
             <div style={{ display: "flex", gap: 8, marginBottom: 12,
                           flexWrap: "wrap" }}>
               <img src={state.operatorImage1} alt="Evidence 1"
@@ -108,7 +112,9 @@ export function SequenceControl({ state }: Props) {
           )}
 
           <div style={{ display: "flex", gap: 8 }}>
-            {btn("↺ Retry", () => sequenceApi.retry(), "#2a4a7f")}
+            {state.operatorFault !== "operator_stop" && (
+              btn("↺ Retry", () => sequenceApi.retry(), "#2a4a7f")
+            )}
             {btn("⌂ Reset", () => sequenceApi.reset(), "#7f4a2a")}
           </div>
         </div>

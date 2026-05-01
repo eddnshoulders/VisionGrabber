@@ -22,11 +22,11 @@ export function MachineControl() {
     return resp;
   }
 
-  async function getCurrentPosition() {
-    const r    = await fetch("/api/machine/position");
-    const json = await r.json();
-    if (!json.ok) return null;
-    return { x: json.x, y: json.y, z: json.z };
+  async function getCurrentPosition(): Promise<{ x: number; y: number; z: number } | null> {
+    const stateResp = await fetch("/api/machine/position");
+    const stateJson = await stateResp.json();
+    if (!stateJson.ok) return null;
+    return { x: stateJson.x, y: stateJson.y, z: stateJson.z };
   }
 
   async function nudgeXY(axis: "x" | "y", dir: 1 | -1) {
@@ -221,7 +221,10 @@ export function MachineControl() {
             <div>Z: {posZ.toFixed(2)}</div>
           </div>
           <button style={{ ...btn("#1a3a1a"), marginTop: 8, width: "100%" }}
-                  onClick={() => send("G28")}>
+                  onClick={async () => {
+                    await send("G28");
+                    await send("G0 Z40 F3000");
+                  }}>
             ⌂ Home All
           </button>
         </div>

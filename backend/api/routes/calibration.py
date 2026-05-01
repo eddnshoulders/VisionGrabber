@@ -48,6 +48,20 @@ def data():
     return jsonify({"ok": True, "data": calib._data.to_dict()})
 
 
+@calibration_bp.route("/offset")
+def offset_get():
+    return jsonify({"ok": True, **_calib().runtime_offset})
+
+
+@calibration_bp.route("/offset", methods=["POST"])
+def offset_set():
+    data     = request.get_json(force=True)
+    offset_x = float(data.get("offset_x", 0.0))
+    offset_y = float(data.get("offset_y", 0.0))
+    _calib().set_runtime_offset(offset_x, offset_y)
+    return jsonify({"ok": True, "offset_x": offset_x, "offset_y": offset_y})
+
+
 @calibration_bp.route("/test", methods=["POST"])
 def test():
     """Test pixel→machine conversion for a given pixel coordinate."""

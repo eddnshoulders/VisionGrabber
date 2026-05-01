@@ -5,11 +5,10 @@ Runs as VisionGrabberLauncher.service (systemd).
 
 Responsibilities:
   - Owns the machine UART (MachineAPI)
-  - Owns the button serial port (if connected)
   - Exposes a Unix socket IPC server for the Flask backend
-  - Forwards button presses and IPC START commands as the same event
   - Maintains machine state string readable via STATE command
 
+The physical button is handled by a separate button_handler.py process.
 The Flask backend is the sequence coordinator - the launcher is purely
 a hardware abstraction layer. It executes commands and reports state.
 It does not make sequencing decisions.
@@ -20,7 +19,7 @@ IPC protocol (line-oriented UTF-8):
 
 Special commands:
   STATE           -> current machine state string (no UART traffic)
-  START           -> trigger sequence (queued, same as button press)
+  START           -> trigger sequence (queued)
   HOME            -> home the machine
   MOVE <x> <y>   -> G0 move
   GRIPPER OPEN <val> / GRIPPER CLOSE <val>
@@ -33,17 +32,8 @@ import socket
 import threading
 import time
 
-import serial
-
 from machine.machine_api import MachineAPI
-from config import (
-    BUTTON_PORT, BUTTON_BAUDRATE,
-    MACHINE_UART, MACHINE_BAUDRATE,
-    SCAN_X_START, SCAN_Y_START,
-    Z_BED_DOWN, BED_FEEDRATE, MOVE_FEEDRATE,
-    GRIPPER_OPEN, GRIPPER_CLOSE,
-    IPC_SOCKET_PATH,
-)
+from config import *
 
 # ---------------------------------------------------------------------------
 # State
@@ -96,10 +86,8 @@ def execute_command(machine: MachineAPI, cmd: str) -> str:
     try:
         if verb == "STATE":
             return get_state()
-
         elif verb == "M114":
             machine._send("M114")
-            # Read the position line directly, don't use _wait_ok()
             line = machine.ser.readline().decode().strip()
             return line
 
@@ -108,13 +96,7 @@ def execute_command(machine: MachineAPI, cmd: str) -> str:
             return "ok"
 
         elif verb == "MOVE" and len(parts) >= 3:
-            x, y = parts[1], parts[2]
-            z = parts[3] if len(parts) >= 4 else None
-            cmd_str = f"G0 X{x} Y{y}"
-            if z is not None:
-                cmd_str += f" Z{z}"
-            cmd_str += f" F{MOVE_FEEDRATE}"
-            machine.gcode(cmd_str)
+            machine.gcode(f"G0 X{parts[1]} Y{parts[2]} F{MOVE_FEEDRATE}")
             return "ok"
 
         elif verb == "GRIPPER" and len(parts) >= 3:
@@ -210,49 +192,6 @@ def _ipc_server(machine: MachineAPI):
 
 
 # ---------------------------------------------------------------------------
-# Button handler (runs only when button serial port is available)
-# ---------------------------------------------------------------------------
-
-def _button_handler():
-    """
-    Attempts to open the button serial port. If unavailable, exits silently.
-    When connected, forwards button presses as START events and mirrors
-    the LED state from IPC messages.
-    """
-    try:
-        ser = serial.Serial(BUTTON_PORT, BUTTON_BAUDRATE,
-                            timeout=0.2, dsrdtr=True)
-        time.sleep(2)
-        ser.reset_input_buffer()
-        print("[Button] Connected", flush=True)
-        set_state_led(ser, False)
-    except Exception as exc:
-        print(f"[Button] Not available: {exc}", flush=True)
-        return
-
-    while True:
-        try:
-            line = ser.readline().decode().strip()
-            if line == "BTN":
-                print("[Button] Press received", flush=True)
-                start_event.set()
-            elif line:
-                print(f"[Button] {line}", flush=True)
-        except Exception as exc:
-            print(f"[Button] Error: {exc}", flush=True)
-            break
-
-    print("[Button] Disconnected", flush=True)
-
-
-def set_state_led(ser, on: bool):
-    try:
-        ser.write(b"LED_ON\n" if on else b"LED_OFF\n")
-    except Exception:
-        pass
-
-
-# ---------------------------------------------------------------------------
 # Idle loop - drains command queue while waiting for START
 # ---------------------------------------------------------------------------
 
@@ -298,9 +237,6 @@ def main():
         args=(machine,),
         daemon=True,
     ).start()
-
-    # Start button handler (optional - exits gracefully if not connected)
-    threading.Thread(target=_button_handler, daemon=True).start()
 
     # Initial home
     homed, x, y, z = machine.get_position()

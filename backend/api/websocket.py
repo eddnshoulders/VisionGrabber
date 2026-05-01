@@ -45,9 +45,13 @@ class WebSocketManager:
     """
 
     def __init__(self):
-        # Set of active WebSocket connections
         self._clients: set[WsConnection] = set()
         self._lock = threading.Lock()
+        self._on_connect = None   # called with no args when a new client connects
+
+    def set_connect_callback(self, cb):
+        """Register a callback invoked whenever a new client connects."""
+        self._on_connect = cb
 
     # ------------------------------------------------------------------
     # Connection lifecycle
@@ -61,6 +65,13 @@ class WebSocketManager:
         """
         self._register(ws)
         logger.info(f"[WS] Client connected. Total: {self._client_count()}")
+
+        # Emit current state to the newly connected client
+        if self._on_connect:
+            try:
+                self._on_connect()
+            except Exception as exc:
+                logger.warning(f"[WS] on_connect callback failed: {exc}")
 
         try:
             # Block here - we don't expect messages from the client over WS.

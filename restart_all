@@ -1,0 +1,20 @@
+#!/bin/bash
+APP_DIR="$HOME/VisionGrabber/backend" 
+PYTHON="$APP_DIR/grabber-venv/bin/python" 
+SEND_CMD="$APP_DIR/send_cmd.py"
+
+echo "=============================="
+echo " VisionGrabber System Restart" 
+echo "=============================="
+echo
+
+echo "Systemd services:"
+printf " %-24s %s\n" "Launcher:" "$(sudo systemctl restart VisionGrabberLauncher)" 
+printf " %-24s %s\n" "App:" "$(sudo systemctl restart VisionGrabberApp)"
+printf " %-24s %s\n" "Button:" "$(sudo systemctl restart VisionGrabberButton)"
+
+
+echo 
+echo "Machine state:"
+cd "$APP_DIR" || exit 1
+"$PYTHON" "$SEND_CMD" STATE

@@ -60,10 +60,15 @@ class CameraThread(threading.Thread):
         self._latest_detection: Optional[PipelineResult] = None
         self._fps    = 0.0
         self._running = True
+        self._health_state: str = "inactive"  # inactive | active | fault
+
+        # Optional health status callback - set by app.py after construction
+        self._on_health = None
 
         # Single-frame request mechanism
         self._single_event  = threading.Event()
         self._single_result: Optional[PipelineResult] = None
+        self._single_silent: bool = False
 
     # ------------------------------------------------------------------
     # Public interface
@@ -86,30 +91,37 @@ class CameraThread(threading.Thread):
     def start_streaming(self):
         with self._mode_lock:
             self._mode = CameraMode.STREAMING
+        self._emit_health("active")
         logger.info(f"[{self.name}] Streaming started")
 
     def stop_streaming(self):
         with self._mode_lock:
             self._mode = CameraMode.IDLE
+        self._emit_health("inactive")
         logger.info(f"[{self.name}] Streaming stopped")
 
-    def capture_single(self, timeout: float = 5.0) -> Optional[PipelineResult]:
+    def capture_single(self, timeout: float = 5.0,
+                       silent: bool = False) -> Optional[PipelineResult]:
         """
         Request a single frame capture and block until result is available.
         Returns PipelineResult or None on timeout.
+        If silent=True, the captured frame does not update the displayed feed.
         """
         with self._mode_lock:
             prev_mode = self._mode
             self._mode = CameraMode.SINGLE
         self._single_event.clear()
-        self._single_result = None
+        self._single_result  = None
+        self._single_silent  = silent
 
         if not self._single_event.wait(timeout=timeout):
             logger.warning(f"[{self.name}] Single capture timed out")
+            self._emit_health("fault")
             with self._mode_lock:
                 self._mode = prev_mode
             return None
 
+        self._emit_health("active")
         with self._mode_lock:
             self._mode = prev_mode
         return self._single_result
@@ -126,6 +138,26 @@ class CameraThread(threading.Thread):
         ok, jpg = cv2.imencode(".jpg", frame,
                                [int(cv2.IMWRITE_JPEG_QUALITY), quality])
         return jpg.tobytes() if ok else None
+
+    @property
+    def health_state(self) -> str:
+        return self._health_state
+
+    def set_health_callback(self, cb):
+        """Register callback(camera_id, status) called on health state changes."""
+        self._on_health = cb
+
+    def _emit_health(self, status: str):
+        self._health_state = status
+        if self._on_health:
+            self._on_health(self.camera_id, status)
+
+    def check_health(self):
+        """
+        Explicitly emit current health state.
+        Call at sequence start, calibration start, etc.
+        """
+        self._emit_health(self._health_state)
 
     def stop(self):
         self._running = False
@@ -145,10 +177,32 @@ class CameraThread(threading.Thread):
             )
             picam.configure(cfg)
             picam.start()
-            time.sleep(2)
+            # USB cameras (uvcvideo) need longer to initialise than CSI cameras
+            settle_time = 4.0 if self.camera_id == CameraId.OVERHEAD else 2.0
+            time.sleep(settle_time)
+
+            # Flush initial frames - first few can be corrupted while
+            # the sensor and ISP initialise
+            for _ in range(10 if self.camera_id == CameraId.OVERHEAD else 5):
+                picam.capture_array()
+                time.sleep(0.1)
+
             logger.info(f"[{self.name}] Camera opened")
+            self._emit_health("active")
+
+            # Capture one initial frame so the stream has something to show
+            try:
+                raw = picam.capture_array()
+                raw = cv2.cvtColor(raw, cv2.COLOR_RGB2BGR)
+                result = run_pipeline(raw, self.params)
+                with self._frame_lock:
+                    self._frames.update(result.frames)
+                    self._latest_detection = result
+            except Exception:
+                pass
         except Exception as exc:
             logger.error(f"[{self.name}] Failed to open camera: {exc}")
+            self._emit_health("fault")
             return
 
         last_t = time.time()
@@ -166,6 +220,7 @@ class CameraThread(threading.Thread):
                 raw = cv2.cvtColor(raw, cv2.COLOR_RGB2BGR)
             except Exception as exc:
                 logger.error(f"[{self.name}] Capture error: {exc}")
+                self._emit_health("fault")
                 time.sleep(0.5)
                 continue
 
@@ -177,7 +232,8 @@ class CameraThread(threading.Thread):
             result = run_pipeline(raw, self.params)
 
             with self._frame_lock:
-                self._frames.update(result.frames)
+                if mode != CameraMode.SINGLE or not self._single_silent:
+                    self._frames.update(result.frames)
                 self._latest_detection = result
 
             if mode == CameraMode.SINGLE:

@@ -109,7 +109,7 @@ def save_params(params: CameraParams, camera_id: "CameraId",
     """
     PRESETS_PATH.mkdir(parents=True, exist_ok=True)
     if name:
-        path = PRESETS_PATH / f"{name}.json"
+        path = _preset_filename(camera_id, name)
     else:
         path = _default_filename(camera_id)
     path.write_text(json.dumps(params.to_dict(), indent=2))
@@ -117,12 +117,61 @@ def save_params(params: CameraParams, camera_id: "CameraId",
     return path
 
 
+def _active_preset_file(camera_id: "CameraId") -> Path:
+    return PRESETS_PATH / f"{camera_id.name.lower()}_active_preset.txt"
+
+
+def get_active_preset(camera_id: "CameraId") -> str | None:
+    """Return the name of the currently active (default) preset, or None."""
+    path = _active_preset_file(camera_id)
+    if path.exists():
+        return path.read_text().strip() or None
+    return None
+
+
+def set_default_preset(camera_id: "CameraId", name: str) -> Path:
+    """
+    Set a named preset as the default:
+    - Copies the preset to the default _params.json file
+    - Records the preset name in the active preset sidecar file
+    """
+    preset_path = _preset_filename(camera_id, name)
+    if not preset_path.exists():
+        raise FileNotFoundError(f"Preset not found: {name}")
+
+    # Copy preset to default file
+    default_path = _default_filename(camera_id)
+    default_path.write_text(preset_path.read_text())
+
+    # Record active preset name
+    _active_preset_file(camera_id).write_text(name)
+
+    logger.info(f"[Params] Default set to preset '{name}' for {camera_id.name}")
+    return default_path
+
+
+def _preset_filename(camera_id: "CameraId", name: str) -> Path:
+    """Full path for a named preset file."""
+    return PRESETS_PATH / f"{camera_id.name.lower()}_{name}.json"
+
+
+def _preset_name_from_file(camera_id: "CameraId", path: Path) -> str:
+    """Extract preset name from filename by stripping camera prefix."""
+    prefix = f"{camera_id.name.lower()}_"
+    return path.stem[len(prefix):]
+
+
 def list_presets(camera_id: "CameraId") -> list[str]:
-    """List all saved preset names for a camera."""
-    prefix = camera_id.name.lower()
+    """List all saved preset names for this camera only."""
     if not PRESETS_PATH.exists():
         return []
-    return [
-        p.stem for p in PRESETS_PATH.glob("*.json")
-        if not p.stem.endswith("_params")  # exclude default files
-    ]
+    prefix  = f"{camera_id.name.lower()}_"
+    exclude = {
+        f"{camera_id.name.lower()}_params",
+        f"{camera_id.name.lower()}_active_preset",
+    }
+    return sorted([
+        _preset_name_from_file(camera_id, p)
+        for p in PRESETS_PATH.glob(f"{prefix}*.json")
+        if p.stem not in exclude
+    ])

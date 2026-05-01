@@ -4,7 +4,6 @@ Sequence coordinator for VisionGrabber.
 Owns the top-level state machine. Responds to trigger events (button press,
 GUI start) and drives the full pick-and-place sequence.
 
-
 State transitions are driven by:
   - External triggers (start, stop, operator actions) via trigger()
   - Internal results (detection success/failure, move completion)
@@ -19,6 +18,11 @@ import logging
 import threading
 import time
 from typing import Optional
+
+
+class StopRequested(Exception):
+    """Raised when the operator presses Stop during a sequence."""
+    pass
 
 from api.messages import (
     SequenceState,
@@ -64,6 +68,7 @@ class SequenceCoordinator(threading.Thread):
         self._trigger      = threading.Event()
         self._trigger_lock = threading.Lock()
         self._pending: Optional[str] = None   # "start" | "stop" | "retry" | "reset"
+        self._stop_requested = False
 
         # Overhead detection count before pickup (for gripper verification)
         self._pre_pickup_count: int = 0
@@ -84,6 +89,8 @@ class SequenceCoordinator(threading.Thread):
         """
         with self._trigger_lock:
             self._pending = action
+        if action == "stop":
+            self._stop_requested = True
         self._trigger.set()
         logger.info(f"[Coordinator] Trigger: {action!r}")
 
@@ -162,7 +169,76 @@ class SequenceCoordinator(threading.Thread):
 
     def _run_sequence(self):
         try:
+            # Check camera health before starting
+            self._toolhead_cam.check_health()
+            self._overhead_cam.check_health()
+            self._stop_requested = False
+
+            # Ensure bed is at Z_BED_DOWN before scanning
+            pos = self._get_position()
+            if pos is not None:
+                _, _, z = pos
+                if abs(z - Z_BED_DOWN) > 0.5:
+                    logger.info(f"[Coordinator] Bed at Z={z:.1f}, "
+                                f"moving to Z_BED_DOWN={Z_BED_DOWN}")
+                    self._machine(f"G0 Z{Z_BED_DOWN} F{BED_FEEDRATE}")
+
             # 1. Scan overhead
+            self._check_stop()
+            detected, count = self._do_scanning()
+            if not detected:
+                self._soft_fault(SoftFaultType.TARGET_NOT_FOUND, image1="overhead")
+                return
+            self._pre_pickup_count = count
+
+            # 2. Plan path
+            self._check_stop()
+            target = self._do_planning()
+            if target is None:
+                return
+
+            # 3. Move to pickup
+            self._check_stop()
+            self._do_move_to_pickup(target)
+
+            # 4. Fine-tune
+            self._check_stop()
+            success = self._do_fine_tuning()
+            if not success:
+                self._soft_fault(SoftFaultType.FINE_TUNE_TIMEOUT, image1="toolhead")
+                return
+
+            # 5. Pick up
+            self._check_stop()
+            self._do_pickup()
+
+            # 6. Move to dropoff and drop
+            self._check_stop()
+            self._do_move_to_dropoff()
+
+            # 7. Home
+            self._set_state(SequenceState.DROPPED)
+            self._machine(f"G0 X{SCAN_X_START} Y{SCAN_Y_START} F{MOVE_FEEDRATE}")
+
+            # 8. Verify dropoff
+            verified = self._do_verify_dropoff()
+            if not verified:
+                self._soft_fault(
+                    SoftFaultType.OBJECT_STILL_PRESENT,
+                    image1="overhead_before",
+                    image2="overhead_after",
+                )
+                return
+
+        except StopRequested:
+            logger.info("[Coordinator] Stop requested - halting machine")
+            self._ipc.send("STOP")
+            self._toolhead_cam.stop_streaming()
+            self._stop_requested = False
+            self._soft_fault(SoftFaultType.OPERATOR_STOP, image1="")
+
+        except Exception as exc:
+            raise  # let the outer loop handle it
             detected, count = self._do_scanning()
             if not detected:
                 self._soft_fault(SoftFaultType.TARGET_NOT_FOUND, image1="overhead")
@@ -187,10 +263,14 @@ class SequenceCoordinator(threading.Thread):
             # 5. Pick up
             self._do_pickup()
 
-            # 6. Move to dropoff
+            # 6. Move to dropoff and drop
             self._do_move_to_dropoff()
 
-            # 7. Verify dropoff
+            # 7. Home first - gantry out of the way before taking overhead frame
+            self._set_state(SequenceState.DROPPED)
+            self._machine(f"G0 X{SCAN_X_START} Y{SCAN_Y_START} F{MOVE_FEEDRATE}")
+
+            # 8. Verify dropoff - overhead frame after homing shows full bed
             verified = self._do_verify_dropoff()
             if not verified:
                 self._soft_fault(
@@ -199,12 +279,6 @@ class SequenceCoordinator(threading.Thread):
                     image2="overhead_after",
                 )
                 return
-
-            # 8. Done - home and loop
-            self._set_state(SequenceState.DROPPED)
-            self._machine(f"G0 X{SCAN_X_START} Y{SCAN_Y_START} "
-                          f"Z{Z_BED_DOWN} F{BED_FEEDRATE}")
-            self._machine(f"M280 S{GRIPPER_OPEN}")
 
         except Exception as exc:
             raise  # let the outer loop handle it
@@ -232,13 +306,20 @@ class SequenceCoordinator(threading.Thread):
 
         best   = result.best
         target = self._calibration.pixel_to_machine(best.px, best.py)
-        if target is None:
-            logger.warning("[Coordinator] Cylinder outside calibrated boundary")
+        mx, my = target
+
+        # Enforce machine working area limits
+        if not (SCAN_X_END <= mx <= SCAN_X_START and
+                SCAN_Y_END <= my <= SCAN_Y_START):
+            logger.warning(
+                f"[Coordinator] Target ({mx:.1f},{my:.1f}) outside machine limits "
+                f"(X:{SCAN_X_END}-{SCAN_X_START} Y:{SCAN_Y_END}-{SCAN_Y_START})"
+            )
             return None
 
         logger.info(f"[Coordinator] Target: pixel ({best.px},{best.py}) "
-                    f"→ machine ({target[0]:.2f},{target[1]:.2f})")
-        return target
+                    f"→ machine ({mx:.2f},{my:.2f})")
+        return mx, my
 
     def _do_move_to_pickup(self, target: tuple):
         self._set_state(SequenceState.MOVING_TO_PICKUP)
@@ -249,6 +330,10 @@ class SequenceCoordinator(threading.Thread):
     def _do_fine_tuning(self) -> bool:
         self._set_state(SequenceState.FINE_TUNING)
         logger.info("[Coordinator] Fine-tuning position")
+
+        # Always stream during fine-tuning for frontend display.
+        # Track whether user had streaming on so we can restore state after.
+        was_streaming = self._toolhead_cam.mode.value == "streaming"
         self._toolhead_cam.start_streaming()
 
         start   = time.time()
@@ -320,7 +405,8 @@ class SequenceCoordinator(threading.Thread):
             return False
 
         finally:
-            self._toolhead_cam.stop_streaming()
+            if not was_streaming:
+                self._toolhead_cam.stop_streaming()
 
     def _do_pickup(self):
         self._set_state(SequenceState.PICKING_UP)
@@ -340,10 +426,10 @@ class SequenceCoordinator(threading.Thread):
         self._machine(f"G0 Z{Z_BED_DOWN} F{BED_FEEDRATE}")
         self._machine(f"M280 S{GRIPPER_OPEN}")
         time.sleep(0.3)
-        self._machine(f"G0 Z{Z_BED_UP} F{BED_FEEDRATE}")
         self._ws.emit(HealthGrabberMessage(
             payload=HealthGrabberPayload(status=GrabberState.OPEN)
         ))
+        # Z stays down - gantry moves back to home in _run_sequence after verify
 
     def _do_verify_dropoff(self) -> bool:
         self._set_state(SequenceState.VERIFYING_DROPOFF)
@@ -368,11 +454,11 @@ class SequenceCoordinator(threading.Thread):
         self._ws.emit(SequenceAwaitingOperatorMessage(
             payload=SequenceAwaitingOperatorPayload(
                 fault=fault,
-                image1=f"/api/camera/overhead/frame/{image1}",
+                image1=f"/api/camera/overhead/frame/{image1}" if image1 else None,
                 image2=f"/api/camera/overhead/frame/{image2}" if image2 else None,
             )
         ))
-        self._set_indicator(True)  # prompt operator
+        self._set_indicator(True)
 
         # Wait for operator action
         self._trigger.wait()
@@ -380,10 +466,15 @@ class SequenceCoordinator(threading.Thread):
         self._set_indicator(False)
 
         action = self._consume_trigger()
-        if action == "retry":
+
+        # operator_stop only supports reset
+        if fault == SoftFaultType.OPERATOR_STOP or action == "reset":
+            # Open gripper and home
+            self._ipc.send(f"M280 S{GRIPPER_OPEN}")
+            self._machine(f"G0 Z{Z_BED_DOWN} F{BED_FEEDRATE}")
+            self._machine(f"G0 X{SCAN_X_START} Y{SCAN_Y_START} F{MOVE_FEEDRATE}")
+        elif action == "retry":
             self._run_sequence()   # restart from scanning
-        elif action == "reset":
-            pass                   # fall through to ready_loop
 
     # ------------------------------------------------------------------
     # Helpers
@@ -401,6 +492,11 @@ class SequenceCoordinator(threading.Thread):
         self._ws.emit(IndicatorReadyMessage(
             payload=IndicatorReadyPayload(on=on)
         ))
+
+    def _check_stop(self):
+        """Raise StopRequested if operator pressed Stop."""
+        if self._stop_requested:
+            raise StopRequested()
 
     def _get_position(self) -> Optional[tuple[float, float, float]]:
         """Fetch current machine position via M114. Returns (x, y, z) or None."""

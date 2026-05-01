@@ -30,19 +30,21 @@ def _cam_id(camera_id: str) -> CameraId:
 
 @camera_bp.route("/<camera_id>/stream/start", methods=["POST"])
 def stream_start(camera_id):
-    _cam(camera_id).start_streaming()
+    cam = _cam(camera_id)
+    cam.start_streaming()   # emits health internally
     return jsonify({"ok": True})
 
 
 @camera_bp.route("/<camera_id>/stream/stop", methods=["POST"])
 def stream_stop(camera_id):
-    _cam(camera_id).stop_streaming()
+    cam = _cam(camera_id)
+    cam.stop_streaming()    # emits health internally
     return jsonify({"ok": True})
 
 
 @camera_bp.route("/<camera_id>/stream")
 def stream(camera_id):
-    """MJPEG stream endpoint."""
+    """MJPEG stream endpoint - always serves last frame even when idle."""
     cam = _cam(camera_id)
 
     def generate():
@@ -51,7 +53,10 @@ def stream(camera_id):
             if jpg:
                 yield (b"--frame\r\nContent-Type: image/jpeg\r\n\r\n"
                        + jpg + b"\r\n")
-            time.sleep(1.0 / max(1, cam.params.stream_fps))
+            # When idle, poll slowly to hold last frame in browser
+            mode = cam.mode.value
+            fps  = cam.params.stream_fps if mode != "idle" else 2
+            time.sleep(1.0 / max(1, fps))
 
     return Response(generate(),
                     mimetype="multipart/x-mixed-replace; boundary=frame")
@@ -121,9 +126,28 @@ def params_save(camera_id):
 
 @camera_bp.route("/<camera_id>/params/presets")
 def params_presets(camera_id):
+    from camera.params import get_active_preset
     cid     = _cam_id(camera_id)
     presets = list_presets(cid)
-    return jsonify({"presets": presets})
+    active  = get_active_preset(cid)
+    return jsonify({"presets": presets, "active": active})
+
+
+@camera_bp.route("/<camera_id>/params/set-default", methods=["POST"])
+def params_set_default(camera_id):
+    from camera.params import set_default_preset
+    cid  = _cam_id(camera_id)
+    data = request.get_json(force=True) or {}
+    name = data.get("name", "")
+    if not name:
+        return jsonify({"ok": False, "error": "name required"}), 400
+    try:
+        set_default_preset(cid, name)
+        # Reload params in camera thread so change takes effect immediately
+        _cam(camera_id).params = load_params(cid)
+        return jsonify({"ok": True, "active": name})
+    except FileNotFoundError as e:
+        return jsonify({"ok": False, "error": str(e)}), 404
 
 
 @camera_bp.route("/<camera_id>/params/load", methods=["POST"])

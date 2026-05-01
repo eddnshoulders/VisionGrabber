@@ -17,10 +17,10 @@ const SLIDER_DEFS: Array<[string, number, number, number]> = [
   ["circularity_min",  0.1,  1.0, 0.01],
   ["min_radius",         0,  400,  1],
   ["max_radius",         0,  500,  1],
-  ["roi_x_min",          0,  640,  1],
-  ["roi_x_max",          0,  640,  1],
-  ["roi_y_min",          0,  480,  1],
-  ["roi_y_max",          0,  480,  1],
+  ["roi_x_min",          0, 1280,  1],
+  ["roi_x_max",          0, 1280,  1],
+  ["roi_y_min",          0,  960,  1],
+  ["roi_y_max",          0,  960,  1],
   ["jpeg_quality",      30,   90,  1],
   ["stream_fps",         1,   20,  1],
 ];
@@ -29,15 +29,22 @@ const VIEW_OPTIONS = ["raw","gray","mask","contours","annotated","tiled"];
 const THRESHOLD_MODES = ["binary","inverse","hsv","adaptive"];
 
 export function ParamTuner({ id }: Props) {
-  const [params, setParams]     = useState<Params | null>(null);
-  const [saveMsg, setSaveMsg]   = useState<string | null>(null);
-  const [presets, setPresets]   = useState<string[]>([]);
+  const [params, setParams]       = useState<Params | null>(null);
+  const [saveMsg, setSaveMsg]     = useState<string | null>(null);
+  const [presets, setPresets]     = useState<string[]>([]);
+  const [activePreset, setActive] = useState<string | null>(null);
   const [presetName, setPresetName] = useState("");
 
   useEffect(() => {
     cameraApi.getParams(id).then(setParams);
-    cameraApi.getPresets(id).then((r) => setPresets(r.presets ?? []));
+    refreshPresets();
   }, [id]);
+
+  async function refreshPresets() {
+    const r = await cameraApi.getPresets(id);
+    setPresets(r.presets ?? []);
+    setActive(r.active ?? null);
+  }
 
   const update = useCallback(async (key: string, value: unknown) => {
     setParams((p) => p ? { ...p, [key]: value } : p);
@@ -45,15 +52,27 @@ export function ParamTuner({ id }: Props) {
   }, [id]);
 
   async function save() {
-    const r = await cameraApi.saveParams(id, presetName || undefined);
+    const name = presetName.trim();
+    const r    = await cameraApi.saveParams(id, name || undefined);
     setSaveMsg(r.saved_to ?? "saved");
-    cameraApi.getPresets(id).then((r) => setPresets(r.presets ?? []));
+    await refreshPresets();
     setTimeout(() => setSaveMsg(null), 3000);
   }
 
-  async function loadPreset(name: string) {
-    const r = await cameraApi.loadPreset(id, name);
+  async function load() {
+    const name = presetName.trim();
+    const r    = await cameraApi.loadPreset(id, name || undefined);
     if (r.params) setParams(r.params);
+  }
+
+  async function setDefault() {
+    const name = presetName.trim();
+    if (!name) return;
+    const r = await cameraApi.setDefaultPreset(id, name);
+    if (r.ok) {
+      setActive(name);
+      await refreshPresets();
+    }
   }
 
   if (!params) return (
@@ -72,6 +91,12 @@ export function ParamTuner({ id }: Props) {
     background: "#2a2a2a", color: "#eee",
     border: "1px solid #444", borderRadius: 4,
   };
+
+  const btnStyle = (bg: string): React.CSSProperties => ({
+    padding: "5px 10px", background: bg, color: "#eee",
+    border: "none", borderRadius: 4, cursor: "pointer",
+    fontSize: 12, whiteSpace: "nowrap" as const,
+  });
 
   return (
     <div style={{ background: "#1c1c1c", borderRadius: 8, padding: 14,
@@ -127,41 +152,71 @@ export function ParamTuner({ id }: Props) {
         );
       })}
 
-      {/* Save */}
-      <div style={{ marginTop: 16 }}>
-        <label style={{ fontSize: 12, color: "#888" }}>
-          Save as preset (blank = default)
-        </label>
-        <div style={{ display: "flex", gap: 6, marginTop: 4 }}>
-          <input type="text" value={presetName} placeholder="preset name"
-                 onChange={(e) => setPresetName(e.target.value)}
-                 style={{ ...inputStyle, flex: 1 }} />
-          <button onClick={save}
-                  style={{ padding: "4px 12px", background: "#2a4a7f",
-                           color: "#eee", border: "none", borderRadius: 4,
-                           cursor: "pointer" }}>
+      {/* Presets */}
+      <div style={{ marginTop: 16, borderTop: "1px solid #333",
+                    paddingTop: 14 }}>
+        <div style={{ fontSize: 12, color: "#666", letterSpacing: 1,
+                      marginBottom: 8 }}>PRESETS</div>
+
+        {/* Dropdown populates name field */}
+        {presets.length > 0 && (
+          <>
+            {label("Select preset")}
+            <select
+              value={presetName}
+              style={{ ...inputStyle, marginBottom: 6 }}
+              onChange={(e) => setPresetName(e.target.value)}>
+              <option value="">— select —</option>
+              {presets.map((p) => (
+                <option key={p} value={p}>
+                  {p === activePreset ? `★ ${p}` : p}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
+
+        {/* Editable name field */}
+        {label("Preset name (blank = default)")}
+        <input
+          type="text"
+          value={presetName}
+          placeholder="type new name or select above"
+          onChange={(e) => setPresetName(e.target.value)}
+          style={{ ...inputStyle, marginBottom: 8 }}
+        />
+
+        {/* Action buttons */}
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          <button style={btnStyle("#2a7f4a")} onClick={save}>
             Save
           </button>
+          <button style={btnStyle("#2a4a7f")} onClick={load}>
+            Load
+          </button>
+          {presetName.trim() && presetName.trim() !== activePreset && (
+            <button style={btnStyle("#7f6a00")} onClick={setDefault}
+                    title="Set as default on startup">
+              ★ Set default
+            </button>
+          )}
         </div>
+
+        {/* Active preset indicator */}
+        {activePreset && (
+          <div style={{ fontSize: 11, color: "#888", marginTop: 6 }}>
+            Default on startup: <span style={{ color: "#e2b714" }}>
+              ★ {activePreset}
+            </span>
+          </div>
+        )}
+
         {saveMsg && (
-          <div style={{ fontSize: 11, color: "#7fc97f", marginTop: 4 }}>
-            {saveMsg}
+          <div style={{ fontSize: 11, color: "#7fc97f", marginTop: 6 }}>
+            ✓ {saveMsg}
           </div>
         )}
       </div>
-
-      {/* Load preset */}
-      {presets.length > 0 && (
-        <div style={{ marginTop: 12 }}>
-          <label style={{ fontSize: 12, color: "#888" }}>Load preset</label>
-          <select style={{ ...inputStyle, marginTop: 4 }}
-                  onChange={(e) => { if (e.target.value) loadPreset(e.target.value); }}
-                  defaultValue="">
-            <option value="" disabled>Select preset...</option>
-            {presets.map((p) => <option key={p} value={p}>{p}</option>)}
-          </select>
-        </div>
-      )}
     </div>
   );
 }

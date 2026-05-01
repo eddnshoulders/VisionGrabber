@@ -59,8 +59,10 @@ export const cameraApi = {
     post(`/camera/${id}/params/save`, name ? { name } : {}).then((r) => r.json()),
   getPresets:    (id: CameraId) =>
     get(`/camera/${id}/params/presets`).then((r) => r.json()),
-  loadPreset:    (id: CameraId, name: string) =>
-    post(`/camera/${id}/params/load`, { name }).then((r) => r.json()),
+  loadPreset:       (id: CameraId, name?: string) =>
+    post(`/camera/${id}/params/load`, { name: name || null }).then((r) => r.json()),
+  setDefaultPreset: (id: CameraId, name: string) =>
+    post(`/camera/${id}/params/set-default`, { name }).then((r) => r.json()),
 };
 
 // ── Machine ───────────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { CameraFeed }       from "../components/CameraFeed";
-import { SequenceControl }  from "../components/SequenceControl";
+import { CalibrationPanel } from "../components/CalibrationPanel";
 import { MachineControl }   from "../components/MachineControl";
 import { HealthPanel }      from "../components/HealthPanel";
 import { SystemState }      from "../hooks/useSystemState";
@@ -8,7 +8,7 @@ interface Props {
   state: SystemState;
 }
 
-export function Overview({ state }: Props) {
+export function CalibrationPage({ state }: Props) {
   return (
     <div style={{ padding: 16 }}>
 
@@ -22,7 +22,7 @@ export function Overview({ state }: Props) {
       {/* Controls */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
                     gap: 16 }}>
-        <SequenceControl state={state} />
+        <CalibrationPanel />
         <MachineControl />
         <HealthPanel state={state} />
       </div>

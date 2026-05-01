@@ -1,5 +1,5 @@
 # Python
-Host/grabber-venv/
+backend/grabber-venv/
 **/__pycache__/
 **/*.pyc
 
