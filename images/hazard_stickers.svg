@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="210mm" height="148mm" viewBox="0 0 680 520" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>Cylinder top hazard stickers - print sheet</title>
+<desc>Three hazard stickers at 18mm diameter: death (red, skull), danger (orange, flame), warning (yellow, exclamation mark). Black icons on coloured circles.</desc>
+
+<style>
+  .cut { stroke: #aaa; stroke-width: 0.5; stroke-dasharray: 3,3; fill: none; }
+  .label { font-family: sans-serif; font-size: 11px; fill: #666; text-anchor: middle; }
+</style>
+
+<text x="340" y="28" class="label" style="font-size:14px;fill:#222;font-weight:500">Cylinder top hazard stickers — print at 100%, cut on dashed guides</text>
+<text x="340" y="46" class="label">Each sticker 18mm diameter. Print on white label stock or plain paper and laminate.</text>
+
+<!-- ROW 1: DEATH (red, black skull) -->
+<g transform="translate(90,110)">
+  <circle class="cut" cx="0" cy="0" r="26"/>
+  <circle cx="0" cy="0" r="22" fill="#e02020"/>
+  <ellipse cx="0" cy="-3" rx="11" ry="10" fill="#111"/>
+  <rect x="-8" y="5" width="16" height="6" rx="2" fill="#111"/>
+  <rect x="-5" y="7" width="3" height="5" rx="1" fill="#e02020"/>
+  <rect x="-1.5" y="7" width="3" height="5" rx="1" fill="#e02020"/>
+  <rect x="2" y="7" width="3" height="5" rx="1" fill="#e02020"/>
+  <ellipse cx="-4" cy="-4" rx="3" ry="3.5" fill="#e02020"/>
+  <ellipse cx="4" cy="-4" rx="3" ry="3.5" fill="#e02020"/>
+  <ellipse cx="0" cy="1" rx="2" ry="2" fill="#e02020"/>
+</g>
+<text x="90" y="145" class="label">death</text>
+
+<g transform="translate(210,110)">
+  <circle class="cut" cx="0" cy="0" r="26"/>
+  <circle cx="0" cy="0" r="22" fill="#e02020"/>
+  <ellipse cx="0" cy="-3" rx="11" ry="10" fill="#111"/>
+  <rect x="-8" y="5" width="16" height="6" rx="2" fill="#111"/>
+  <rect x="-5" y="7" width="3" height="5" rx="1" fill="#e02020"/>
+  <rect x="-1.5" y="7" width="3" height="5" rx="1" fill="#e02020"/>
+  <rect x="2" y="7" width="3" height="5" rx="1" fill="#e02020"/>
+  <ellipse cx="-4" cy="-4" rx="3" ry="3.5" fill="#e02020"/>
+  <ellipse cx="4" cy="-4" rx="3" ry="3.5" fill="#e02020"/>
+  <ellipse cx="0" cy="1" rx="2" ry="2" fill="#e02020"/>
+</g>
+<text x="210" y="145" class="label">death</text>
+
+<g transform="translate(330,110)">
+  <circle class="cut" cx="0" cy="0" r="26"/>
+  <circle cx="0" cy="0" r="22" fill="#e02020"/>
+  <ellipse cx="0" cy="-3" rx="11" ry="10" fill="#111"/>
+  <rect x="-8" y="5" width="16" height="6" rx="2" fill="#111"/>
+  <rect x="-5" y="7" width="3" height="5" rx="1" fill="#e02020"/>
+  <rect x="-1.5" y="7" width="3" height="5" rx="1" fill="#e02020"/>
+  <rect x="2" y="7" width="3" height="5" rx="1" fill="#e02020"/>
+  <ellipse cx="-4" cy="-4" rx="3" ry="3.5" fill="#e02020"/>
+  <ellipse cx="4" cy="-4" rx="3" ry="3.5" fill="#e02020"/>
+  <ellipse cx="0" cy="1" rx="2" ry="2" fill="#e02020"/>
+</g>
+<text x="330" y="145" class="label">death</text>
+
+<g transform="translate(450,110)">
+  <circle class="cut" cx="0" cy="0" r="26"/>
+  <circle cx="0" cy="0" r="22" fill="#e02020"/>
+  <ellipse cx="0" cy="-3" rx="11" ry="10" fill="#111"/>
+  <rect x="-8" y="5" width="16" height="6" rx="2" fill="#111"/>
+  <rect x="-5" y="7" width="3" height="5" rx="1" fill="#e02020"/>
+  <rect x="-1.5" y="7" width="3" height="5" rx="1" fill="#e02020"/>
+  <rect x="2" y="7" width="3" height="5" rx="1" fill="#e02020"/>
+  <ellipse cx="-4" cy="-4" rx="3" ry="3.5" fill="#e02020"/>
+  <ellipse cx="4" cy="-4" rx="3" ry="3.5" fill="#e02020"/>
+  <ellipse cx="0" cy="1" rx="2" ry="2" fill="#e02020"/>
+</g>
+<text x="450" y="145" class="label">death</text>
+
+<g transform="translate(570,110)">
+  <circle class="cut" cx="0" cy="0" r="26"/>
+  <circle cx="0" cy="0" r="22" fill="#e02020"/>
+  <ellipse cx="0" cy="-3" rx="11" ry="10" fill="#111"/>
+  <rect x="-8" y="5" width="16" height="6" rx="2" fill="#111"/>
+  <rect x="-5" y="7" width="3" height="5" rx="1" fill="#e02020"/>
+  <rect x="-1.5" y="7" width="3" height="5" rx="1" fill="#e02020"/>
+  <rect x="2" y="7" width="3" height="5" rx="1" fill="#e02020"/>
+  <ellipse cx="-4" cy="-4" rx="3" ry="3.5" fill="#e02020"/>
+  <ellipse cx="4" cy="-4" rx="3" ry="3.5" fill="#e02020"/>
+  <ellipse cx="0" cy="1" rx="2" ry="2" fill="#e02020"/>
+</g>
+<text x="570" y="145" class="label">death</text>
+
+<!-- ROW 2: DANGER (orange, black flame) -->
+<g transform="translate(90,250)">
+  <circle class="cut" cx="0" cy="0" r="26"/>
+  <circle cx="0" cy="0" r="22" fill="#e07820"/>
+  <path d="M0,-13 C6,-8 10,-2 8,5 C6,10 2,12 0,12 C-2,12 -6,10 -8,5 C-10,-2 -6,-8 0,-13Z" fill="#111"/>
+  <path d="M0,-5 C3,-2 4,2 3,6 C2,9 1,10 0,10 C-1,10 -2,9 -3,6 C-4,2 -3,-2 0,-5Z" fill="#e07820"/>
+</g>
+<text x="90" y="285" class="label">danger</text>
+
+<g transform="translate(210,250)">
+  <circle class="cut" cx="0" cy="0" r="26"/>
+  <circle cx="0" cy="0" r="22" fill="#e07820"/>
+  <path d="M0,-13 C6,-8 10,-2 8,5 C6,10 2,12 0,12 C-2,12 -6,10 -8,5 C-10,-2 -6,-8 0,-13Z" fill="#111"/>
+  <path d="M0,-5 C3,-2 4,2 3,6 C2,9 1,10 0,10 C-1,10 -2,9 -3,6 C-4,2 -3,-2 0,-5Z" fill="#e07820"/>
+</g>
+<text x="210" y="285" class="label">danger</text>
+
+<g transform="translate(330,250)">
+  <circle class="cut" cx="0" cy="0" r="26"/>
+  <circle cx="0" cy="0" r="22" fill="#e07820"/>
+  <path d="M0,-13 C6,-8 10,-2 8,5 C6,10 2,12 0,12 C-2,12 -6,10 -8,5 C-10,-2 -6,-8 0,-13Z" fill="#111"/>
+  <path d="M0,-5 C3,-2 4,2 3,6 C2,9 1,10 0,10 C-1,10 -2,9 -3,6 C-4,2 -3,-2 0,-5Z" fill="#e07820"/>
+</g>
+<text x="330" y="285" class="label">danger</text>
+
+<g transform="translate(450,250)">
+  <circle class="cut" cx="0" cy="0" r="26"/>
+  <circle cx="0" cy="0" r="22" fill="#e07820"/>
+  <path d="M0,-13 C6,-8 10,-2 8,5 C6,10 2,12 0,12 C-2,12 -6,10 -8,5 C-10,-2 -6,-8 0,-13Z" fill="#111"/>
+  <path d="M0,-5 C3,-2 4,2 3,6 C2,9 1,10 0,10 C-1,10 -2,9 -3,6 C-4,2 -3,-2 0,-5Z" fill="#e07820"/>
+</g>
+<text x="450" y="285" class="label">danger</text>
+
+<g transform="translate(570,250)">
+  <circle class="cut" cx="0" cy="0" r="26"/>
+  <circle cx="0" cy="0" r="22" fill="#e07820"/>
+  <path d="M0,-13 C6,-8 10,-2 8,5 C6,10 2,12 0,12 C-2,12 -6,10 -8,5 C-10,-2 -6,-8 0,-13Z" fill="#111"/>
+  <path d="M0,-5 C3,-2 4,2 3,6 C2,9 1,10 0,10 C-1,10 -2,9 -3,6 C-4,2 -3,-2 0,-5Z" fill="#e07820"/>
+</g>
+<text x="570" y="285" class="label">danger</text>
+
+<!-- ROW 3: WARNING (yellow, black exclamation) -->
+<g transform="translate(90,390)">
+  <circle class="cut" cx="0" cy="0" r="26"/>
+  <circle cx="0" cy="0" r="22" fill="#e0c820"/>
+  <rect x="-3.5" y="-12" width="7" height="14" rx="3" fill="#111"/>
+  <circle cx="0" cy="9" r="3.5" fill="#111"/>
+</g>
+<text x="90" y="425" class="label">warning</text>
+
+<g transform="translate(210,390)">
+  <circle class="cut" cx="0" cy="0" r="26"/>
+  <circle cx="0" cy="0" r="22" fill="#e0c820"/>
+  <rect x="-3.5" y="-12" width="7" height="14" rx="3" fill="#111"/>
+  <circle cx="0" cy="9" r="3.5" fill="#111"/>
+</g>
+<text x="210" y="425" class="label">warning</text>
+
+<g transform="translate(330,390)">
+  <circle class="cut" cx="0" cy="0" r="26"/>
+  <circle cx="0" cy="0" r="22" fill="#e0c820"/>
+  <rect x="-3.5" y="-12" width="7" height="14" rx="3" fill="#111"/>
+  <circle cx="0" cy="9" r="3.5" fill="#111"/>
+</g>
+<text x="330" y="425" class="label">warning</text>
+
+<g transform="translate(450,390)">
+  <circle class="cut" cx="0" cy="0" r="26"/>
+  <circle cx="0" cy="0" r="22" fill="#e0c820"/>
+  <rect x="-3.5" y="-12" width="7" height="14" rx="3" fill="#111"/>
+  <circle cx="0" cy="9" r="3.5" fill="#111"/>
+</g>
+<text x="450" y="425" class="label">warning</text>
+
+<g transform="translate(570,390)">
+  <circle class="cut" cx="0" cy="0" r="26"/>
+  <circle cx="0" cy="0" r="22" fill="#e0c820"/>
+  <rect x="-3.5" y="-12" width="7" height="14" rx="3" fill="#111"/>
+  <circle cx="0" cy="9" r="3.5" fill="#111"/>
+</g>
+<text x="570" y="425" class="label">warning</text>
+
+<!-- Scale reference -->
+<line x1="64" y1="480" x2="112" y2="480" stroke="#aaa" stroke-width="0.75"/>
+<line x1="64" y1="476" x2="64" y2="484" stroke="#aaa" stroke-width="0.75"/>
+<line x1="112" y1="476" x2="112" y2="484" stroke="#aaa" stroke-width="0.75"/>
+<text x="88" y="496" class="label">18mm at 100%</text>
+
+</svg>

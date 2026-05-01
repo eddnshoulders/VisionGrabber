@@ -14,6 +14,8 @@ source grabber-venv/bin/activate
 pip install -r requirements.txt --no-cache
 # You might need to uninstall numpy from the venv if it conflicts with the system version (venv opencv should still run fine)
 pip uninstall numpy
+pip uninstall scpiy
+
 
 ## install picamera2 system module and setup camera
 sudo apt install python3-picamera2

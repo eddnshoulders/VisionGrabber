@@ -1,0 +1,19 @@
+#!/bin/bash
+APP_DIR="$HOME/VisionGrabber/backend" 
+PYTHON="$APP_DIR/grabber-venv/bin/python" 
+SEND_CMD="$APP_DIR/send_cmd.py"
+
+echo "=============================="
+echo " VisionGrabber System Status" 
+echo "=============================="
+echo
+
+echo "Systemd services:"
+printf " %-24s %s\n" "Button:" "$(systemctl is-active VisionGrabberButton)"
+printf " %-24s %s\n" "Launcher:" "$(systemctl is-active VisionGrabberLauncher)" 
+printf " %-24s %s\n" "App:" "$(systemctl is-active VisionGrabberApp)"
+
+echo 
+echo "Machine state:"
+cd "$APP_DIR" || exit 1
+"$PYTHON" "$SEND_CMD" STATE

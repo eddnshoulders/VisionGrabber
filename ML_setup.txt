@@ -1,0 +1,114 @@
+sudo apt-get install python3.12-dev python3-tk graphviz libgraphviz-dev pkg-config
+
+mkdir ~/hailo && cd ~/hailo
+
+python3 -m venv ~/hailo/hailo-venv
+source ~/hailo/hailo-venv/bin/activate
+
+# download hailo dataflow compiler from the dev zone to ~/hailo
+
+pip install hailo_dataflow_compiler*.whl
+
+# Patch the GPU memory threshold
+sed -i 's/max_memory_utilization=0.05/max_memory_utilization=0.1/' \
+  ~/hailo/hailo-venv/lib/python3.12/site-packages/hailo_model_optimization/acceleras/utils/nvidia_smi_gpu_selector.py
+
+# to use nvidia gpu, update the CUDA toolkit
+wget https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/cuda-keyring_1.1-1_all.deb
+sudo dpkg -i cuda-keyring_1.1-1_all.deb
+sudo apt-get update
+
+# install most recent version, found using
+sudo ap-cache search cuda-toolkit
+
+# for me, that was
+sudo apt-get install cuda-toolkit-13-2
+
+# make sure we're using the versions of cuda-toolkit we just installed (in case there are other system installations)
+echo 'export PATH=/usr/local/cuda/bin:$PATH' >> ~/.zshrc
+source ~/.zshrc
+
+# make sure we're using the new version
+which nvcc
+nvcc --version
+
+# install non-wsl nvidia repo for cudnn9 packages (manual method because we want to keep the wsl repo visible to apt
+echo "deb [signed-by=/usr/share/keyrings/cuda-archive-keyring.gpg] https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/ /" | sudo tee /etc/apt/sources.list.d/cuda-ubuntu2404-x86_64.list
+sudo apt-get update
+apt-cache search cudnn9
+
+# install cudnn9 version matching cuda toolkit version
+sudo apt install cudnn9-cuda-13-2
+
+# make sure we're using the version of cudnn9 we just installed (in case there are other system installations)
+echo 'export LD_LIBRARY_PATH=/usr/lib/wsl/lib:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH' >> ~/.zshrc
+source ~/.zshrc
+
+# check everything is ok and ready to compiler
+hailo --version
+
+# install ultralytics in a separate venv
+deactivate
+mkdir ~/ultralytics && cd ultralytics
+python3 -m venv ~/ultralytics/ultralytics-venv
+source ~/ultralytics/ultralytics-venv/bin/activate
+pip install ultralytics
+
+## test the toolchain with an example model
+# import YOLOv8n
+python3 -c "from ultralytics import YOLO; model = YOLO('yolov8n.pt'); model.export(format='onnx', imgsz=640)"
+
+# switch back to the hailo venv
+source ~/hailo/hailo-venv/bin/activate
+cd ~/ultralytics
+
+# create a halo archive (HAR) file from the onnx model
+hailo parser onnx yolov8n.onnx --hw-arch hailo8l \
+  --end-node-names \
+  "/model.22/cv2.0/cv2.0.2/Conv" \
+  "/model.22/cv3.0/cv3.0.2/Conv" \
+  "/model.22/cv2.1/cv2.1.2/Conv" \
+  "/model.22/cv3.1/cv3.1.2/Conv" \
+  "/model.22/cv2.2/cv2.2.2/Conv" \
+  "/model.22/cv3.2/cv3.2.2/Conv"	
+
+# optimise the model
+hailo optimize yolov8n.har --hw-arch hailo8l --use-random-calib-set
+
+% to optimise without the GPU, run 
+CUDA_VISIBLE_DEVICES="" hailo optimize yolov8s.har --hw-arch hailo8l --use-random-calib-set
+
+
+# compile the model
+hailo compiler yolov8n_optimized.har --hw-arch hailo8l
+
+## pi setup with hailo-8L driver and hailort	
+# on the pi, install hailort in the venv
+source ~/VisionGrabber/backend/grabber-venv/bin/activate
+sudo apt install hailort hailofw hailo-dkms hailo-tappas-core python3-hailort
+
+# check hailo is present and enumerates
+lspci
+
+# check kernel module is loaded (should return "hailo_pci")
+lsmod | grep hailo
+
+# create a folder for hailo files
+mkdir ~/VisionGrabber/hailo
+cd ~/VisionGrabber/hailo
+
+# from WSL, copy across the .hef file
+scp yolov8n.hef pi@<IP>/home/pi/VisionGrabber/hailo
+
+# Back on the pi, test the inference works
+hailortcli run yolov8n.hef
+
+HAILO_MONITOR=1 python test_stream.py --hef yolov8s.hef
+hailortcli monitor
+
+
+
+# install the hailo model zoo for YOLOv8n compilation settings for the 8L
+cd ~
+git clone https://github.com/hailo-ai/hailo_model_zoo.git
+cd hailo_model_zoo

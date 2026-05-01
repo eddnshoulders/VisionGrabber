@@ -23,6 +23,16 @@ from api.routes.sequence import sequence_bp
 from api.routes.camera import camera_bp
 from api.routes.machine import machine_bp
 from api.routes.calibration import calibration_bp
+from api.routes.button import button_bp, _emit_button_status
+
+# Module-level button state tracker
+_button_connected: bool = False
+
+
+def set_button_connected(connected: bool):
+    global _button_connected
+    _button_connected = connected
+    _emit_button_status(connected)
 from camera.camera_thread import CameraThread, CameraId
 from camera.calibration import CalibrationManager
 from machine.heartbeat import HeartbeatPoller
@@ -65,6 +75,7 @@ app.register_blueprint(sequence_bp,     url_prefix="/api/sequence")
 app.register_blueprint(camera_bp,       url_prefix="/api/camera")
 app.register_blueprint(machine_bp,      url_prefix="/api/machine")
 app.register_blueprint(calibration_bp,  url_prefix="/api/calibration")
+app.register_blueprint(button_bp,       url_prefix="/api/button")
 
 # ---------------------------------------------------------------------------
 # Serve frontend (production)
@@ -88,9 +99,66 @@ def _start_background_services():
     # Camera threads
     toolhead_cam = CameraThread(CameraId.TOOLHEAD)
     overhead_cam  = CameraThread(CameraId.OVERHEAD)
+
+    def _camera_health_cb(camera_id: CameraId, status: str):
+        from api.messages import (
+            HealthToolheadCameraMessage, HealthOverheadCameraMessage,
+            HealthCameraPayload, CameraState,
+        )
+        try:
+            cam_status = CameraState(status)
+        except ValueError:
+            cam_status = CameraState.FAULT
+        if camera_id == CameraId.TOOLHEAD:
+            ws_manager.emit(HealthToolheadCameraMessage(
+                payload=HealthCameraPayload(state=cam_status)
+            ))
+        else:
+            ws_manager.emit(HealthOverheadCameraMessage(
+                payload=HealthCameraPayload(state=cam_status)
+            ))
+
+    toolhead_cam.set_health_callback(_camera_health_cb)
+    overhead_cam.set_health_callback(_camera_health_cb)
     toolhead_cam.start()
     overhead_cam.start()
     logger.info("Camera threads started")
+
+    def _on_ws_connect():
+        """Emit current health state to a newly connected WebSocket client."""
+        from api.messages import (
+            HealthToolheadCameraMessage, HealthOverheadCameraMessage,
+            HealthCameraPayload, CameraState,
+        )
+        try:
+            th_state = CameraState(toolhead_cam.health_state)
+        except ValueError:
+            th_state = CameraState.FAULT
+        try:
+            oh_state = CameraState(overhead_cam.health_state)
+        except ValueError:
+            oh_state = CameraState.FAULT
+
+        ws_manager.emit(HealthToolheadCameraMessage(
+            payload=HealthCameraPayload(state=th_state)
+        ))
+        ws_manager.emit(HealthOverheadCameraMessage(
+            payload=HealthCameraPayload(state=oh_state)
+        ))
+        # Button state
+        _emit_button_status(_button_connected)
+        # Sequence state
+        try:
+            from api.messages import SequenceStateMessage, SequenceStatePayload
+            coord = app.extensions.get("vg", {}).get("coordinator")
+            if coord is not None:
+                ws_manager.emit(SequenceStateMessage(
+                    payload=SequenceStatePayload(state=coord.state)
+                ))
+        except Exception:
+            pass
+
+    ws_manager.set_connect_callback(_on_ws_connect)
 
     # Heartbeat poller (STATE command to launcher every ~2s)
     heartbeat = HeartbeatPoller(

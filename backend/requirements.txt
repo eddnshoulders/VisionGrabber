@@ -1,8 +1,9 @@
 flask
 flask-sock
 markupSafe
-numpy
-opencv-python-headless
+numpy==1.24.2
+opencv-python-headless==4.0.11.86
 requests
 pyserial
-scipy
+scipy==1.10.1
+

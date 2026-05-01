@@ -34,9 +34,10 @@ class SequenceState(str, Enum):
 
 
 class SoftFaultType(str, Enum):
-    FINE_TUNE_TIMEOUT   = "fine_tune_timeout"
-    TARGET_NOT_FOUND    = "target_not_found"
+    FINE_TUNE_TIMEOUT    = "fine_tune_timeout"
+    TARGET_NOT_FOUND     = "target_not_found"
     OBJECT_STILL_PRESENT = "object_still_present"
+    OPERATOR_STOP        = "operator_stop"
 
 
 class MachineState(str, Enum):

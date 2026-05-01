@@ -41,18 +41,21 @@ export function CameraFeed({ id, title }: Props) {
       </div>
 
       <div style={{ background: "#000", borderRadius: 6, overflow: "hidden",
-                    aspectRatio: "4/3" }}>
-        {streaming ? (
-          <img
-            src={cameraApi.streamUrl(id)}
-            alt={title}
-            style={{ width: "100%", height: "100%", objectFit: "contain" }}
-          />
-        ) : (
-          <div style={{ display: "flex", alignItems: "center",
-                        justifyContent: "center", height: "100%",
-                        color: "#444", fontSize: 13 }}>
-            Stream stopped
+                    aspectRatio: "4/3", position: "relative" }}>
+        {/* img always mounted - browser holds last frame when stream pauses */}
+        <img
+          src={cameraApi.streamUrl(id)}
+          alt={title}
+          style={{ width: "100%", height: "100%", objectFit: "contain" }}
+        />
+        {/* Overlay when not streaming */}
+        {!streaming && (
+          <div style={{
+            position: "absolute", bottom: 6, right: 8,
+            fontSize: 11, color: "#555", background: "#000a",
+            padding: "2px 6px", borderRadius: 3,
+          }}>
+            last frame
           </div>
         )}
       </div>

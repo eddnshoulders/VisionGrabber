@@ -134,30 +134,17 @@ class CalibrationTransform:
     ) -> Optional[tuple[float, float]]:
         """
         Convert raw pixel coordinates to machine coordinates (mm).
-        Inverts Y axis, applies parallax correction space, checks boundary,
-        queries spline, applies grabber offset.
-        Returns None if outside calibrated boundary.
+        No boundary checking - caller is responsible for validating
+        the result against machine limits.
+        Applies Y axis inversion and grabber offset.
         """
         import numpy as np
-
-        # Invert pixel Y to match machine Y axis direction
-        # Must be done before boundary check since boundary is in inverted space
         inverted_py = self._image_height - py
-
-        if not self.in_bounds(px, inverted_py):
-            logger.warning(
-                f"[Calibration] ({px:.0f},{py:.0f}) outside calibrated boundary"
-            )
-            return None
-
-        query = np.array([[px, inverted_py]], dtype=float)
+        query       = np.array([[px, inverted_py]], dtype=float)
         mx = float(self._rbf_x(query)[0])
         my = float(self._rbf_y(query)[0])
-
-        # Apply grabber offset
         mx += self._data.grabber_offset_x
         my += self._data.grabber_offset_y
-
         return mx, my
 
 
@@ -189,6 +176,11 @@ class CalibrationManager:
         # Status callback for WebSocket progress updates
         self._on_progress: Optional[Callable[[dict], None]] = None
 
+        # Runtime position trim - persisted separately from calibration
+        self._runtime_offset_x: float = 0.0
+        self._runtime_offset_y: float = 0.0
+        self._load_runtime_offset()
+
         # Load existing calibration if available
         self._load()
 
@@ -204,13 +196,30 @@ class CalibrationManager:
         with self._lock:
             return dict(self._progress)
 
+    @property
+    def runtime_offset(self) -> dict:
+        return {"offset_x": self._runtime_offset_x,
+                "offset_y": self._runtime_offset_y}
+
+    def set_runtime_offset(self, offset_x: float, offset_y: float):
+        """Update runtime trim offset and persist to disk."""
+        self._runtime_offset_x = offset_x
+        self._runtime_offset_y = offset_y
+        self._save_runtime_offset()
+        logger.info(f"[Calibration] Runtime offset updated: "
+                    f"X={offset_x:.3f} Y={offset_y:.3f}")
+
     def pixel_to_machine(
         self, px: float, py: float
     ) -> Optional[tuple[float, float]]:
         if self._transform is None:
             logger.error("[Calibration] No transform available - run calibration first")
             return None
-        return self._transform.pixel_to_machine(px, py)
+        mx, my = self._transform.pixel_to_machine(px, py)
+        # Apply runtime trim offset (persisted, adjustable without recalibrating)
+        mx += self._runtime_offset_x
+        my += self._runtime_offset_y
+        return mx, my
 
     # ------------------------------------------------------------------
     # Calibration routine
@@ -231,6 +240,9 @@ class CalibrationManager:
 
         self._running = True
         self._set_progress(status="starting", point=0, total=0, failed=[])
+
+        # Check camera health before starting
+        self._overhead_cam.check_health()
 
         try:
             return self._run(grabber_offset_x, grabber_offset_y)
@@ -364,16 +376,19 @@ class CalibrationManager:
                 pixel_y=cy + (inverted_py - cy) * scale,
             ))
 
-        # Compute pixel boundary from corrected outermost grid points
-        px_vals = [p.pixel_x for p in corrected_points]
-        py_vals = [p.pixel_y for p in corrected_points]
+        # Boundary = full image extent after parallax correction.
+        # Allows interpolation across the whole camera view, not just the
+        # calibration grid footprint. The spline is fitted from grid points
+        # but valid for the full corrected image area.
+        half_w = (self._overhead_cam.params.frame_width  / 2.0) * scale
+        half_h = (self._overhead_cam.params.frame_height / 2.0) * scale
 
         data = CalibrationData(
             points=corrected_points,
-            boundary_x_min=min(px_vals),
-            boundary_x_max=max(px_vals),
-            boundary_y_min=min(py_vals),
-            boundary_y_max=max(py_vals),
+            boundary_x_min=cx - half_w,
+            boundary_x_max=cx + half_w,
+            boundary_y_min=cy - half_h,
+            boundary_y_max=cy + half_h,
             grabber_offset_x=grabber_offset_x,
             grabber_offset_y=grabber_offset_y,
             image_height=image_height,
@@ -438,6 +453,7 @@ class CalibrationManager:
         return _Det()
 
     # ------------------------------------------------------------------
+    # Persistence
     # ------------------------------------------------------------------
 
     def _save(self, data: CalibrationData):
@@ -460,6 +476,33 @@ class CalibrationManager:
             )
         except Exception as exc:
             logger.warning(f"[Calibration] Failed to load calibration: {exc}")
+
+    def _runtime_offset_path(self) -> Path:
+        return CALIB_PATH.parent / "runtime_offset.json"
+
+    def _load_runtime_offset(self):
+        path = self._runtime_offset_path()
+        if not path.exists():
+            logger.info("[Calibration] No runtime offset file - using zero")
+            return
+        try:
+            d = json.loads(path.read_text())
+            self._runtime_offset_x = float(d.get("offset_x", 0.0))
+            self._runtime_offset_y = float(d.get("offset_y", 0.0))
+            logger.info(f"[Calibration] Runtime offset loaded: "
+                        f"X={self._runtime_offset_x:.3f} "
+                        f"Y={self._runtime_offset_y:.3f}")
+        except Exception as exc:
+            logger.warning(f"[Calibration] Failed to load runtime offset: {exc}")
+
+    def _save_runtime_offset(self):
+        path = self._runtime_offset_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({
+            "offset_x": self._runtime_offset_x,
+            "offset_y": self._runtime_offset_y,
+        }, indent=2))
+        logger.info(f"[Calibration] Runtime offset saved to {path}")
 
     # ------------------------------------------------------------------
     # Helpers

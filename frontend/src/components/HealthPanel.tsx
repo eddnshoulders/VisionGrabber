@@ -24,10 +24,10 @@ function Indicator({ label, status }: { label: string; status: Status }) {
 export function HealthPanel({ state }: Props) {
   const commsStatus = state.machineComms === "ok"    ? "ok"
                     : state.machineComms === "fault"  ? "fault" : "unknown";
-  const toolStatus  = state.toolheadCameraState === "active" ? "ok"
-                    : state.toolheadCameraState === "fault"  ? "fault" : "unknown";
-  const overStatus  = state.overheadCameraState === "active" ? "ok"
-                    : state.overheadCameraState === "fault"  ? "fault" : "unknown";
+  const toolStatus  = state.toolheadCameraState === "fault"  ? "fault"
+                    : state.toolheadCameraState === null      ? "unknown" : "ok";
+  const overStatus  = state.overheadCameraState === "fault"  ? "fault"
+                    : state.overheadCameraState === null      ? "unknown" : "ok";
   const grabStatus  = state.grabberState === "suspected_fault" ? "fault"
                     : state.grabberState ? "ok" : "unknown";
   const btnStatus   = state.buttonState === "connected" ? "ok"

@@ -17,7 +17,8 @@ export type SequenceState =
 export type SoftFaultType =
   | "fine_tune_timeout"
   | "target_not_found"
-  | "object_still_present";
+  | "object_still_present"
+  | "operator_stop";
 
 // ── Machine ───────────────────────────────────────────────────────────────────
 

@@ -1,0 +1,56 @@
+# take images
+# annotate images using cvat.ai
+# export annotations
+
+## create dataset folder
+# create data.yaml
+path: /abs/path/to/dataset
+train: images/train
+val: images/val
+
+nc: 4
+names:
+  0: death
+  1: hazard
+  2: warning
+  3: target
+  
+# copy over images. The corresponding annotation txt files go in labels/train and labels/val
+
+# run the training (automatically uses GPU, if available)
+cd <parent folder to dataset>
+source ~/ultralytics/ultralytics-venv/bin/activate
+yolo detect train \
+  data=dataset/data.yaml \
+  model=yolo11l.pt \
+  epochs=100 \
+  imgsz=640 \
+  batch=8
+  
+# export onnx
+python3 -c "
+from ultralytics import YOLO
+model = YOLO('runs/detect/train/weights/best.pt')
+model.export(format='onnx', imgsz=640)"
+  
+# switch back to the hailo venv
+source ~/hailo/hailo-venv/bin/activate
+
+# parse the onnx model to a har
+hailo parser onnx runs/detect/train/weights/best.onnx --hw-arch hailo8l \
+  --end-node-names \
+  "/model.23/cv2.0/cv2.0.2/Conv" \
+  "/model.23/cv3.0/cv3.0.2/Conv" \
+  "/model.23/cv2.1/cv2.1.2/Conv" \
+  "/model.23/cv3.1/cv3.1.2/Conv" \
+  "/model.23/cv3.2/cv3.2.2/Conv" \
+  "/model.23/cv2.2/cv2.2.2/Conv"
+
+# optimise the model
+hailo optimize best.har --hw-arch hailo8l --use-random-calib-set
+
+% to optimise without the GPU, run 
+CUDA_VISIBLE_DEVICES="" hailo optimize best.har --hw-arch hailo8l --use-random-calib-set
+
+# compile the model
+HAILO_LOG_LEVEL=debug hailo compiler best_optimized.har --hw-arch hailo8l
